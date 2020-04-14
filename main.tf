@@ -22,6 +22,7 @@ resource "aws_cloudfront_distribution" "default" {
   comment             = "${var.cloudfront_comment}"
   default_root_object = "${var.index_document}"
   aliases             = ["${var.cloudfront_aliases}"]
+  price_class         = "${var.cloudfront_price_class}"
 
   default_cache_behavior {
     allowed_methods  = ["GET", "HEAD"]

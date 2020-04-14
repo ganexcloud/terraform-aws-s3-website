@@ -66,6 +66,11 @@ variable "cloudfront_viewer_protocol_policy" {
   default     = ""
 }
 
+variable "cloudfront_price_class" {
+  default     = "PriceClass_All"
+  description = "Price class for this distribution: `PriceClass_All`, `PriceClass_200`, `PriceClass_100`"
+}
+
 variable "route53_enabled" {
   type        = "string"
   default     = "true"
