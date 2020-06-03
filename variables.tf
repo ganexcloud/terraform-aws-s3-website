@@ -42,6 +42,13 @@ variable "acl" {
   default     = "private"
 }
 
+variable "origin_path" {
+  type        = string
+  description = "An optional element that causes CloudFront to request your content from a directory in your Amazon S3 bucket or your custom origin. It must begin with a /. Do not add a / at the end of the path."
+  default     = "/"
+}
+
+
 variable "cloudfront_enabled" {
   description = "Enable Cloudfront"
   type        = bool

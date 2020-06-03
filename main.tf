@@ -5,11 +5,6 @@ resource "aws_s3_bucket" "name" {
   policy        = var.policy
   acl           = var.acl
 
-  #website {
-  #  index_document = var.index_document
-  #  error_document = var.error_document
-  #}
-
   dynamic "website" {
     for_each = length(keys(var.website)) == 0 ? [] : [var.website]
 
@@ -26,6 +21,23 @@ resource "aws_s3_bucket" "name" {
   }
 }
 
+data "aws_iam_policy_document" "origin_website" {
+  statement {
+    sid       = "PublicReadGetObject"
+    actions   = ["s3:GetObject"]
+    resources = ["arn:aws:s3:::${var.name}${var.origin_path}*"]
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "default" {
+  bucket = var.name
+  policy = data.aws_iam_policy_document.origin_website.json
+}
+
 resource "aws_cloudfront_distribution" "default" {
   count               = var.cloudfront_enabled == true ? 1 : 0
   enabled             = true
@@ -34,25 +46,6 @@ resource "aws_cloudfront_distribution" "default" {
   default_root_object = var.cloudfront_index_document
   aliases             = var.cloudfront_aliases
   price_class         = var.cloudfront_price_class
-
-  #default_cache_behavior {
-  #  allowed_methods  = ["GET", "HEAD"]
-  #  cached_methods   = ["GET", "HEAD"]
-  #  target_origin_id = var.cloudfront_distribution_name
-  #
-  #  forwarded_values {
-  #    query_string = false
-  #
-  #    cookies {
-  #      forward = "none"
-  #    }
-  #  }
-  #
-  #  viewer_protocol_policy = var.cloudfront_viewer_protocol_policy
-  #  min_ttl                = 0
-  #  default_ttl            = 3600
-  #  max_ttl                = 86400
-  #}
 
   default_cache_behavior {
     allowed_methods  = var.cloudfront_allowed_methods
@@ -85,11 +78,6 @@ resource "aws_cloudfront_distribution" "default" {
       response_page_path    = lookup(custom_error_response.value, "response_page_path", null)
     }
   }
-
-  #origin {
-  #  domain_name = aws_s3_bucket.name.bucket_domain_name
-  #  origin_id   = var.cloudfront_distribution_name
-  #}
 
   origin {
     domain_name = aws_s3_bucket.name.bucket_domain_name
@@ -128,4 +116,3 @@ resource "aws_route53_record" "default" {
     evaluate_target_health = var.route53_evaluate_target_health
   }
 }
-
