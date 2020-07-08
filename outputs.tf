@@ -5,5 +5,5 @@ output "bucket_name" {
 
 output "cloudfront_id" {
   description = "The identifier for the cloudfront distribution"
-  value       = aws_cloudfront_distribution.default.id
+  value       = aws_cloudfront_distribution.default.*.id
 }
