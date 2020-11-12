@@ -9,10 +9,10 @@ variable "force_destroy" {
   default     = false
 }
 
-variable "versioned" {
-  description = "Version the bucket"
-  type        = bool
-  default     = false
+variable "versioning" {
+  description = "Map containing versioning configuration."
+  type        = map(string)
+  default     = {}
 }
 
 variable "website" {
@@ -22,6 +22,12 @@ variable "website" {
     index_document = "index.html"
     error_document = "index.html"
   }
+}
+
+variable "lifecycle_rule" {
+  description = "List of maps containing configuration of object lifecycle management."
+  type        = any
+  default     = []
 }
 
 variable "policy" {
