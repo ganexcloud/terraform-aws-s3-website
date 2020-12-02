@@ -5,7 +5,12 @@ output "bucket_name" {
 
 output "cloudfront_id" {
   description = "The identifier for the cloudfront distribution"
-  value       = aws_cloudfront_distribution.default.*.id
+  value       = element(concat(aws_cloudfront_distribution.default.*.id, list("")), 0)
+}
+
+output "cloudfront_arn" {
+  description = "The ARN (Amazon Resource Name) for the distribution."
+  value       = element(concat(aws_cloudfront_distribution.default.*.arn, list("")), 0)
 }
 
 output "bucket_arn" {
