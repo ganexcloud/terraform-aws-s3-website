@@ -137,9 +137,36 @@ resource "aws_cloudfront_distribution" "default" {
     }
   }
 
-  origin {
-    domain_name = aws_s3_bucket.name.bucket_domain_name
-    origin_id   = var.cloudfront_distribution_name
+  dynamic "origin" {
+    for_each = length(var.cloudfront_custom_origins) == 0 ? list(1) : []
+    content {
+      domain_name = aws_s3_bucket.name.bucket_domain_name
+      origin_id   = var.cloudfront_distribution_name
+    }
+  }
+
+  dynamic "origin" {
+    for_each = var.cloudfront_custom_origins
+    content {
+      domain_name = origin.value.domain_name
+      origin_id   = origin.value.origin_id
+      origin_path = lookup(origin.value, "origin_path", "")
+      dynamic "custom_header" {
+        for_each = lookup(origin.value, "custom_headers", [])
+        content {
+          name  = custom_header.value["name"]
+          value = custom_header.value["value"]
+        }
+      }
+      custom_origin_config {
+        http_port                = lookup(origin.value.custom_origin_config, "http_port", null)
+        https_port               = lookup(origin.value.custom_origin_config, "https_port", null)
+        origin_protocol_policy   = lookup(origin.value.custom_origin_config, "origin_protocol_policy", "https-only")
+        origin_ssl_protocols     = lookup(origin.value.custom_origin_config, "origin_ssl_protocols", ["TLSv1.2"])
+        origin_keepalive_timeout = lookup(origin.value.custom_origin_config, "origin_keepalive_timeout", 60)
+        origin_read_timeout      = lookup(origin.value.custom_origin_config, "origin_read_timeout", 60)
+      }
+    }
   }
 
   viewer_certificate {

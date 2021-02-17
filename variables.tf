@@ -174,6 +174,28 @@ variable "cloudfront_custom_error_response" {
   default     = []
 }
 
+variable "cloudfront_custom_origins" {
+  type = list(object({
+    domain_name = string
+    origin_id   = string
+    origin_path = string
+    custom_headers = list(object({
+      name  = string
+      value = string
+    }))
+    custom_origin_config = object({
+      http_port                = number
+      https_port               = number
+      origin_protocol_policy   = string
+      origin_ssl_protocols     = list(string)
+      origin_keepalive_timeout = number
+      origin_read_timeout      = number
+    })
+  }))
+  default     = []
+  description = "One or more custom origins for this distribution (multiples allowed). See documentation for configuration options description https://www.terraform.io/docs/providers/aws/r/cloudfront_distribution.html#origin-arguments"
+}
+
 variable "route53_enabled" {
   description = "Set to false to prevent the module from creating any resources"
   type        = bool
