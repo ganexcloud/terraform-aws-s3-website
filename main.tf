@@ -84,10 +84,6 @@ data "aws_iam_policy_document" "origin_website" {
     sid       = "PublicReadGetObject"
     actions   = ["s3:GetObject"]
     resources = ["arn:aws:s3:::${var.name}${var.origin_path}*"]
-    principals {
-      type        = "AWS"
-      identifiers = ["*"]
-    }
   }
 }
 
