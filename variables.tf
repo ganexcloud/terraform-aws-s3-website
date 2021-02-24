@@ -93,7 +93,7 @@ variable "cloudfront_minimum_protocol_version" {
 
 variable "cloudfront_default_ttl" {
   type        = number
-  default     = 3600
+  default     = 86400
   description = "Default amount of time (in seconds) that an object is in a CloudFront cache"
 }
 
@@ -105,7 +105,7 @@ variable "cloudfront_min_ttl" {
 
 variable "cloudfront_max_ttl" {
   type        = number
-  default     = 86400
+  default     = 31536000
   description = "Maximum amount of time (in seconds) that an object is in a CloudFront cache"
 }
 
