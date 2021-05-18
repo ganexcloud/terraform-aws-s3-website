@@ -104,6 +104,7 @@ resource "aws_cloudfront_distribution" "default" {
   default_root_object = var.cloudfront_index_document
   aliases             = var.cloudfront_aliases
   price_class         = var.cloudfront_price_class
+  tags                = var.tags
 
   default_cache_behavior {
     allowed_methods  = var.cloudfront_allowed_methods
