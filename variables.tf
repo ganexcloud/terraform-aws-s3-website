@@ -36,6 +36,12 @@ variable "policy" {
   default     = ""
 }
 
+variable "replication_configuration" {
+  description = "Map containing cross-region bucket replication configuration."
+  type        = any
+  default     = {}
+}
+
 variable "tags" {
   description = "Additional Tags"
   type        = map(string)
