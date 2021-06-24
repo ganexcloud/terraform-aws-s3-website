@@ -161,6 +161,47 @@ resource "aws_s3_bucket_policy" "default" {
   policy = data.aws_iam_policy_document.origin_website.json
 }
 
+resource "aws_s3_bucket_notification" "this" {
+  count  = length(var.lambda_notifications) > 0 || length(var.sqs_notifications) > 0 || length(var.sns_notifications) > 0 ? 1 : 0
+  bucket = var.name
+
+  dynamic "lambda_function" {
+    for_each = var.lambda_notifications
+
+    content {
+      id                  = lambda_function.key
+      lambda_function_arn = lambda_function.value.function_arn
+      events              = lambda_function.value.events
+      filter_prefix       = lookup(lambda_function.value, "filter_prefix", null)
+      filter_suffix       = lookup(lambda_function.value, "filter_suffix", null)
+    }
+  }
+
+  dynamic "queue" {
+    for_each = var.sqs_notifications
+
+    content {
+      id            = queue.key
+      queue_arn     = queue.value.queue_arn
+      events        = queue.value.events
+      filter_prefix = lookup(queue.value, "filter_prefix", null)
+      filter_suffix = lookup(queue.value, "filter_suffix", null)
+    }
+  }
+
+  dynamic "topic" {
+    for_each = var.sns_notifications
+
+    content {
+      id            = topic.key
+      topic_arn     = topic.value.topic_arn
+      events        = topic.value.events
+      filter_prefix = lookup(topic.value, "filter_prefix", null)
+      filter_suffix = lookup(topic.value, "filter_suffix", null)
+    }
+  }
+}
+
 resource "aws_cloudfront_distribution" "default" {
   count               = var.cloudfront_enabled == true ? 1 : 0
   enabled             = true
