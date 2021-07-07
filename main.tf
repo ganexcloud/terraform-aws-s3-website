@@ -2,7 +2,6 @@ resource "aws_s3_bucket" "name" {
   bucket        = var.name
   force_destroy = var.force_destroy
   tags          = var.tags
-  policy        = var.policy
   acl           = var.acl
 
   dynamic "website" {
@@ -158,7 +157,7 @@ data "aws_iam_policy_document" "origin_website" {
 
 resource "aws_s3_bucket_policy" "default" {
   bucket = var.name
-  policy = data.aws_iam_policy_document.origin_website.json
+  policy = var.policy == "" ? data.aws_iam_policy_document.origin_website.json : var.policy
 }
 
 resource "aws_s3_bucket_notification" "this" {
