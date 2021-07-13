@@ -214,7 +214,7 @@ resource "aws_cloudfront_distribution" "default" {
   default_cache_behavior {
     allowed_methods  = var.cloudfront_allowed_methods
     cached_methods   = var.cloudfront_cached_methods
-    target_origin_id = var.cloudfront_distribution_name
+    target_origin_id = var.cloudfront_default_target_origin_id == null ? var.cloudfront_distribution_name : var.cloudfront_default_target_origin_id
     compress         = var.cloudfront_compress
     trusted_signers  = var.cloudfront_trusted_signers
 
@@ -271,6 +271,26 @@ resource "aws_cloudfront_distribution" "default" {
         origin_ssl_protocols     = lookup(origin.value.custom_origin_config, "origin_ssl_protocols", ["TLSv1.2"])
         origin_keepalive_timeout = lookup(origin.value.custom_origin_config, "origin_keepalive_timeout", 60)
         origin_read_timeout      = lookup(origin.value.custom_origin_config, "origin_read_timeout", 60)
+      }
+    }
+  }
+
+  dynamic "origin_group" {
+    for_each = var.cloudfront_origin_group
+
+    content {
+      origin_id = lookup(origin_group.value, "origin_id", origin_group.key)
+
+      failover_criteria {
+        status_codes = origin_group.value["failover_status_codes"]
+      }
+
+      member {
+        origin_id = origin_group.value["primary_member_origin_id"]
+      }
+
+      member {
+        origin_id = origin_group.value["secondary_member_origin_id"]
       }
     }
   }

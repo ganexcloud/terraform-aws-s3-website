@@ -60,7 +60,6 @@ variable "origin_path" {
   default     = "/"
 }
 
-
 variable "cloudfront_enabled" {
   description = "Enable Cloudfront"
   type        = bool
@@ -169,6 +168,12 @@ variable "cloudfront_index_document" {
   description = "Amazon S3 returns this index document when requests are made to the root domain or any of the subfolders"
 }
 
+variable "cloudfront_default_target_origin_id" {
+  type        = string
+  default     = null
+  description = "The value of ID for the origin that you want CloudFront to route requests to the default cache behavior"
+}
+
 variable "cloudfront_custom_error_response" {
   type = list(object({
     error_caching_min_ttl = number
@@ -200,6 +205,12 @@ variable "cloudfront_custom_origins" {
   }))
   default     = []
   description = "One or more custom origins for this distribution (multiples allowed). See documentation for configuration options description https://www.terraform.io/docs/providers/aws/r/cloudfront_distribution.html#origin-arguments"
+}
+
+variable "cloudfront_origin_group" {
+  description = "One or more origin_group for this distribution (multiples allowed)."
+  type        = any
+  default     = {}
 }
 
 variable "route53_enabled" {
