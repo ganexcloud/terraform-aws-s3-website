@@ -3,6 +3,7 @@ resource "aws_s3_bucket" "name" {
   force_destroy = var.force_destroy
   tags          = var.tags
   acl           = var.acl
+  policy        = var.policy == "" ? data.aws_iam_policy_document.origin_website.json : var.policy
 
   dynamic "website" {
     for_each = length(keys(var.website)) == 0 ? [] : [var.website]
@@ -153,11 +154,6 @@ data "aws_iam_policy_document" "origin_website" {
       identifiers = ["*"]
     }
   }
-}
-
-resource "aws_s3_bucket_policy" "default" {
-  bucket = var.name
-  policy = var.policy == "" ? data.aws_iam_policy_document.origin_website.json : var.policy
 }
 
 resource "aws_s3_bucket_notification" "this" {
