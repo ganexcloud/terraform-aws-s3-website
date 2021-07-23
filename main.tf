@@ -16,6 +16,18 @@ resource "aws_s3_bucket" "name" {
     }
   }
 
+  dynamic "cors_rule" {
+    for_each = try(jsondecode(var.s3_cors_rule), var.s3_cors_rule)
+
+    content {
+      allowed_methods = cors_rule.value.allowed_methods
+      allowed_origins = cors_rule.value.allowed_origins
+      allowed_headers = lookup(cors_rule.value, "allowed_headers", null)
+      expose_headers  = lookup(cors_rule.value, "expose_headers", null)
+      max_age_seconds = lookup(cors_rule.value, "max_age_seconds", null)
+    }
+  }
+
   dynamic "versioning" {
     for_each = length(keys(var.versioning)) == 0 ? [] : [var.versioning]
 

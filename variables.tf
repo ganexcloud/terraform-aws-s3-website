@@ -260,3 +260,9 @@ variable "sns_notifications" {
   type        = any
   default     = {}
 }
+
+variable "s3_cors_rule" {
+  description = "(Optional) List of maps containing rules for Cross-Origin Resource Sharing."
+  type        = any
+  default     = []
+}
