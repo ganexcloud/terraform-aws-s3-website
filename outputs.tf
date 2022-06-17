@@ -3,6 +3,11 @@ output "bucket_name" {
   value       = aws_s3_bucket.name.id
 }
 
+output "bucket_demain_name" {
+  description = "S3 Bucket Domain Name"
+  value       = aws_s3_bucket.name.bucket_domain_name
+}
+
 output "cloudfront_id" {
   description = "The identifier for the cloudfront distribution"
   value       = element(concat(aws_cloudfront_distribution.default.*.id, list("")), 0)

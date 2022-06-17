@@ -241,6 +241,36 @@ resource "aws_cloudfront_distribution" "default" {
     max_ttl                = var.cloudfront_max_ttl
   }
 
+  dynamic "ordered_cache_behavior" {
+    for_each = var.cloudfront_ordered_cache_behavior
+    content {
+      path_pattern     = ordered_cache_behavior.value.path_pattern
+      allowed_methods  = lookup(ordered_cache_behavior.value, "allowed_methods", ["GET", "HEAD"])
+      cached_methods   = lookup(ordered_cache_behavior.value, "cached_methods", ["GET", "HEAD"])
+      target_origin_id = ordered_cache_behavior.value.target_origin_id
+
+      forwarded_values {
+        headers                 = lookup(ordered_cache_behavior.value, "headers", [])
+        query_string            = lookup(ordered_cache_behavior.value, "query_string", false)
+        query_string_cache_keys = lookup(ordered_cache_behavior.value, "query_string_cache_keys", [])
+
+        cookies {
+          forward           = lookup(ordered_cache_behavior.value, "forward", "none")
+          whitelisted_names = lookup(ordered_cache_behavior.value, "whitelisted_names", [])
+        }
+      }
+
+      min_ttl                = lookup(ordered_cache_behavior.value, "min_ttl", 0)
+      default_ttl            = lookup(ordered_cache_behavior.value, "default_ttl", 86400)
+      max_ttl                = lookup(ordered_cache_behavior.value, "max_ttl", 31536000)
+      compress               = lookup(ordered_cache_behavior.value, "compress", true)
+      viewer_protocol_policy = lookup(ordered_cache_behavior.value, "viewer_protocol_policy", "redirect-to-https")
+      smooth_streaming       = lookup(ordered_cache_behavior.value, "smooth_streaming", false)
+      trusted_key_groups     = lookup(ordered_cache_behavior.value, "trusted_key_groups", [])
+      trusted_signers        = lookup(ordered_cache_behavior.value, "trusted_signers", [])
+    }
+  }
+
   dynamic "custom_error_response" {
     for_each = var.cloudfront_custom_error_response
     content {
@@ -273,15 +303,17 @@ resource "aws_cloudfront_distribution" "default" {
         }
       }
       custom_origin_config {
-        http_port                = lookup(origin.value.custom_origin_config, "http_port", null)
-        https_port               = lookup(origin.value.custom_origin_config, "https_port", null)
-        origin_protocol_policy   = lookup(origin.value.custom_origin_config, "origin_protocol_policy", "https-only")
-        origin_ssl_protocols     = lookup(origin.value.custom_origin_config, "origin_ssl_protocols", ["TLSv1.2"])
-        origin_keepalive_timeout = lookup(origin.value.custom_origin_config, "origin_keepalive_timeout", 60)
-        origin_read_timeout      = lookup(origin.value.custom_origin_config, "origin_read_timeout", 60)
+        http_port                = lookup(origin.value, "http_port", 80)
+        https_port               = lookup(origin.value, "https_port", 443)
+        origin_protocol_policy   = lookup(origin.value, "origin_protocol_policy", "https-only")
+        origin_ssl_protocols     = lookup(origin.value, "origin_ssl_protocols", ["TLSv1.2"])
+        origin_keepalive_timeout = lookup(origin.value, "origin_keepalive_timeout", 60)
+        origin_read_timeout      = lookup(origin.value, "origin_read_timeout", 60)
       }
     }
   }
+
+
 
   dynamic "origin_group" {
     for_each = var.cloudfront_origin_group

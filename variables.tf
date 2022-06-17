@@ -174,6 +174,12 @@ variable "cloudfront_default_target_origin_id" {
   description = "The value of ID for the origin that you want CloudFront to route requests to the default cache behavior"
 }
 
+variable cloudfront_ordered_cache_behavior {
+  type        = any
+  default     = []
+  description = "(Optional) - An ordered list of cache behaviors resource for this distribution. List from top to bottom in order of precedence. The topmost cache behavior will have precedence 0."
+}
+
 variable "cloudfront_custom_error_response" {
   type = list(object({
     error_caching_min_ttl = number
@@ -186,23 +192,7 @@ variable "cloudfront_custom_error_response" {
 }
 
 variable "cloudfront_custom_origins" {
-  type = list(object({
-    domain_name = string
-    origin_id   = string
-    origin_path = string
-    custom_headers = list(object({
-      name  = string
-      value = string
-    }))
-    custom_origin_config = object({
-      http_port                = number
-      https_port               = number
-      origin_protocol_policy   = string
-      origin_ssl_protocols     = list(string)
-      origin_keepalive_timeout = number
-      origin_read_timeout      = number
-    })
-  }))
+  type        = any
   default     = []
   description = "One or more custom origins for this distribution (multiples allowed). See documentation for configuration options description https://www.terraform.io/docs/providers/aws/r/cloudfront_distribution.html#origin-arguments"
 }
