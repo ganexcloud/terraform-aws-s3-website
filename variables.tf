@@ -114,6 +114,18 @@ variable "cloudfront_max_ttl" {
   description = "Maximum amount of time (in seconds) that an object is in a CloudFront cache"
 }
 
+variable "cloudfront_response_headers_policy_id" {
+  description = "(Optional) The identifier for a response headers policy. If response_headers_policy is true the name of policy is used."
+  type        = string
+  default     = null
+}
+
+variable "cloudfront_response_headers_policy" {
+  description = "(Optional) Provides a CloudFront response headers policy resource. A response headers policy contains information about a set of HTTP response headers and their values. After you create a response headers policy, you can use its ID to attach it to one or more cache behaviors in a CloudFront distribution. When it’s attached to a cache behavior, CloudFront adds the headers in the policy to every response that it sends for requests that match the cache behavior."
+  type        = any
+  default     = {}
+}
+
 variable "cloudfront_viewer_protocol_policy" {
   type        = string
   description = "allow-all, redirect-to-https"
