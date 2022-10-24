@@ -1,3 +1,11 @@
+resource "aws_cloudfront_origin_access_identity" "this" {
+  for_each = local.cloudfront_create_origin_access_identity ? var.cloudfront_origin_access_identities : {}
+  comment  = each.value
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 resource "aws_s3_bucket" "name" {
   bucket        = var.name
   force_destroy = var.force_destroy
@@ -209,6 +217,14 @@ resource "aws_s3_bucket_notification" "this" {
   }
 }
 
+resource "aws_s3_bucket_public_access_block" "this" {
+  bucket                  = aws_s3_bucket.name.id
+  block_public_acls       = var.block_public_acls
+  block_public_policy     = var.block_public_policy
+  ignore_public_acls      = var.ignore_public_acls
+  restrict_public_buckets = var.restrict_public_buckets
+}
+
 resource "aws_cloudfront_distribution" "default" {
   count               = var.cloudfront_enabled == true ? 1 : 0
   enabled             = true
@@ -220,25 +236,29 @@ resource "aws_cloudfront_distribution" "default" {
   tags                = var.tags
 
   default_cache_behavior {
-    allowed_methods  = var.cloudfront_allowed_methods
-    cached_methods   = var.cloudfront_cached_methods
-    target_origin_id = var.cloudfront_default_target_origin_id == null ? var.cloudfront_distribution_name : var.cloudfront_default_target_origin_id
-    compress         = var.cloudfront_compress
-    trusted_signers  = var.cloudfront_trusted_signers
-
-    forwarded_values {
-      query_string = var.cloudfront_forward_query_string
-      headers      = var.cloudfront_forward_header_values
-
-      cookies {
-        forward = var.cloudfront_forward_cookies
-      }
-    }
+    allowed_methods            = var.cloudfront_allowed_methods
+    cached_methods             = var.cloudfront_cached_methods
+    target_origin_id           = var.cloudfront_default_target_origin_id == null ? var.cloudfront_distribution_name : var.cloudfront_default_target_origin_id
+    compress                   = var.cloudfront_compress
+    trusted_signers            = var.cloudfront_trusted_signers
+    cache_policy_id            = var.cloudfront_cache_policy_id
     response_headers_policy_id = length(var.cloudfront_response_headers_policy) > 0 ? aws_cloudfront_response_headers_policy.this[0].id : var.cloudfront_response_headers_policy_id
     viewer_protocol_policy     = var.cloudfront_viewer_protocol_policy
     default_ttl                = var.cloudfront_default_ttl
     min_ttl                    = var.cloudfront_min_ttl
     max_ttl                    = var.cloudfront_max_ttl
+
+    dynamic "forwarded_values" {
+      for_each = var.cloudfront_use_forwarded_values ? [true] : []
+      content {
+        query_string = var.cloudfront_forward_query_string
+        headers      = var.cloudfront_forward_header_values
+
+        cookies {
+          forward = var.cloudfront_forward_cookies
+        }
+      }
+    }
   }
 
   dynamic "ordered_cache_behavior" {
@@ -302,18 +322,26 @@ resource "aws_cloudfront_distribution" "default" {
           value = custom_header.value["value"]
         }
       }
-      custom_origin_config {
-        http_port                = lookup(origin.value, "http_port", 80)
-        https_port               = lookup(origin.value, "https_port", 443)
-        origin_protocol_policy   = lookup(origin.value, "origin_protocol_policy", "https-only")
-        origin_ssl_protocols     = lookup(origin.value, "origin_ssl_protocols", ["TLSv1.2"])
-        origin_keepalive_timeout = lookup(origin.value, "origin_keepalive_timeout", 60)
-        origin_read_timeout      = lookup(origin.value, "origin_read_timeout", 60)
+      dynamic "s3_origin_config" {
+        for_each = length(keys(lookup(origin.value, "s3_origin_config", {}))) == 0 ? [] : [lookup(origin.value, "s3_origin_config", {})]
+
+        content {
+          origin_access_identity = lookup(s3_origin_config.value, "cloudfront_access_identity_path", lookup(lookup(aws_cloudfront_origin_access_identity.this, lookup(s3_origin_config.value, "origin_access_identity", ""), {}), "cloudfront_access_identity_path", null))
+        }
+      }
+      dynamic "custom_origin_config" {
+        for_each = length(lookup(origin.value, "custom_origin_config", "")) == 0 ? [] : [lookup(origin.value, "custom_origin_config", "")]
+        content {
+          http_port                = lookup(origin.value, "http_port", 80)
+          https_port               = lookup(origin.value, "https_port", 443)
+          origin_protocol_policy   = lookup(origin.value, "origin_protocol_policy", "https-only")
+          origin_ssl_protocols     = lookup(origin.value, "origin_ssl_protocols", ["TLSv1.2"])
+          origin_keepalive_timeout = lookup(origin.value, "origin_keepalive_timeout", 60)
+          origin_read_timeout      = lookup(origin.value, "origin_read_timeout", 60)
+        }
       }
     }
   }
-
-
 
   dynamic "origin_group" {
     for_each = var.cloudfront_origin_group

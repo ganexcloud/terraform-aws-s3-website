@@ -215,6 +215,30 @@ variable "cloudfront_origin_group" {
   default     = {}
 }
 
+variable "cloudfront_cache_policy_id" {
+  description = "(Optional) - The unique identifier of the cache policy that is attached to the cache behavior."
+  type        = string
+  default     = ""
+}
+
+variable "cloudfront_use_forwarded_values" {
+  description = "Enable forwarded values configuration that specifies how CloudFront handles query strings, cookies and headers (maximum one)."
+  type        = bool
+  default     = true
+}
+
+variable "cloudfront_create_origin_access_identity" {
+  description = "Controls if CloudFront origin access identity should be created"
+  type        = bool
+  default     = false
+}
+
+variable "cloudfront_origin_access_identities" {
+  description = "Map of CloudFront origin access identities (value as a comment)"
+  type        = map(string)
+  default     = {}
+}
+
 variable "route53_enabled" {
   description = "Set to false to prevent the module from creating any resources"
   type        = bool
@@ -267,4 +291,28 @@ variable "s3_cors_rule" {
   description = "(Optional) List of maps containing rules for Cross-Origin Resource Sharing."
   type        = any
   default     = []
+}
+
+variable "block_public_acls" {
+  description = "Whether Amazon S3 should block public ACLs for this bucket."
+  type        = bool
+  default     = false
+}
+
+variable "block_public_policy" {
+  description = "Whether Amazon S3 should block public bucket policies for this bucket."
+  type        = bool
+  default     = false
+}
+
+variable "ignore_public_acls" {
+  description = "Whether Amazon S3 should ignore public ACLs for this bucket."
+  type        = bool
+  default     = false
+}
+
+variable "restrict_public_buckets" {
+  description = "Whether Amazon S3 should restrict public bucket policies for this bucket."
+  type        = bool
+  default     = false
 }
