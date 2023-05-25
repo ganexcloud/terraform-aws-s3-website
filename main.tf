@@ -162,6 +162,27 @@ resource "aws_s3_bucket" "name" {
       }
     }
   }
+
+  dynamic "server_side_encryption_configuration" {
+    for_each = length(keys(var.server_side_encryption_configuration)) == 0 ? [] : [var.server_side_encryption_configuration]
+    content {
+      dynamic "rule" {
+        for_each = length(keys(lookup(server_side_encryption_configuration.value, "rule", {}))) == 0 ? [] : [lookup(server_side_encryption_configuration.value, "rule", {})]
+        content {
+          #bucket_key_enabled = server_side_encryption_configuration.bucket_key_enabled.value
+          bucket_key_enabled = lookup(rule.value, "bucket_key_enabled", null)
+          dynamic "apply_server_side_encryption_by_default" {
+            for_each = length(keys(lookup(rule.value, "apply_server_side_encryption_by_default", {}))) == 0 ? [] : [
+            lookup(rule.value, "apply_server_side_encryption_by_default", {})]
+            content {
+              sse_algorithm     = apply_server_side_encryption_by_default.value.sse_algorithm
+              kms_master_key_id = lookup(apply_server_side_encryption_by_default.value, "kms_master_key_id", null)
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 data "aws_iam_policy_document" "origin_website" {

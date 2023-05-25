@@ -42,6 +42,12 @@ variable "replication_configuration" {
   default     = {}
 }
 
+variable "server_side_encryption_configuration" {
+  description = "Map containing server-side encryption configuration."
+  type        = any
+  default     = {}
+}
+
 variable "tags" {
   description = "Additional Tags"
   type        = map(string)
