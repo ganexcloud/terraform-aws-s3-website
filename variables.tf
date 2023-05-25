@@ -60,12 +60,6 @@ variable "acl" {
   default     = "private"
 }
 
-variable "server_side_encryption_configuration" {
-  description = "Map containing server-side encryption configuration."
-  type        = any
-  default     = {}
-}
-
 variable "origin_path" {
   type        = string
   description = "An optional element that causes CloudFront to request your content from a directory in your Amazon S3 bucket or your custom origin. It must begin with a /. Do not add a / at the end of the path."
