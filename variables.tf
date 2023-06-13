@@ -322,3 +322,9 @@ variable "restrict_public_buckets" {
   type        = bool
   default     = false
 }
+
+variable "object_ownership" {
+  description = "Object Ownership has three settings that you can use to control ownership of objects uploaded to your bucket and to disable (BucketOwnerEnforced) or enable ACLs (BucketOwnerPreferred or ObjectWriter)"
+  type        = string
+  default     = "BucketOwnerEnforced"
+}

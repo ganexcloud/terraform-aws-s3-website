@@ -518,3 +518,10 @@ resource "aws_cloudfront_response_headers_policy" "this" {
   #  }
   #}
 }
+
+resource "aws_s3_bucket_ownership_controls" "this" {
+  bucket = aws_s3_bucket.name.id
+  rule {
+    object_ownership = var.object_ownership
+  }
+}
