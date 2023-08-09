@@ -245,6 +245,18 @@ variable "cloudfront_origin_access_identities" {
   default     = {}
 }
 
+variable "cloudfront_lambda_function_association" {
+  description = "(Optional) - A config block that triggers a lambda function with specific actions (maximum 4)."
+  type        = any
+  default     = {}
+}
+
+variable "cloudfront_function_association" {
+  description = "(Optional) - A config block that triggers a cloudfront function with specific actions (maximum 2)."
+  type        = any
+  default     = {}
+}
+
 variable "route53_enabled" {
   description = "Set to false to prevent the module from creating any resources"
   type        = bool
