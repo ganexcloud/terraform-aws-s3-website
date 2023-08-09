@@ -282,7 +282,7 @@ resource "aws_cloudfront_distribution" "default" {
     }
 
     dynamic "cloudfront_lambda_function_association" {
-      for_each = var.lambda_function_association
+      for_each = var.cloudfront_lambda_function_association
       content {
         event_type   = lambda_function_association.value.key
         lambda_arn   = lambda_function_association.value.lambda_arn
@@ -291,7 +291,7 @@ resource "aws_cloudfront_distribution" "default" {
     }
 
     dynamic "cloudfront_function_association" {
-      for_each = var.function_association
+      for_each = var.cloudfront_function_association
       content {
         event_type   = function_association.key
         function_arn = function_association.value.function_arn
