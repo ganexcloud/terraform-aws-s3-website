@@ -250,6 +250,7 @@ resource "aws_cloudfront_distribution" "default" {
   count               = var.cloudfront_enabled == true ? 1 : 0
   enabled             = true
   is_ipv6_enabled     = true
+  http_version        = var.cloudfront_http_version
   comment             = var.cloudfront_comment
   default_root_object = var.cloudfront_index_document
   aliases             = var.cloudfront_aliases
