@@ -311,7 +311,7 @@ resource "aws_cloudfront_distribution" "default" {
       target_origin_id           = ordered_cache_behavior.value.target_origin_id
 
       dynamic "forwarded_values" {
-        for_each = lookup(ordered_cache_behavior.value, "true", null) ? [true] : []
+        for_each = lookup(ordered_cache_behavior.value, "true", false) ? [true] : []
         content {
           headers                 = lookup(ordered_cache_behavior.value, "headers", [])
           query_string            = lookup(ordered_cache_behavior.value, "query_string", false)
