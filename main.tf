@@ -303,19 +303,23 @@ resource "aws_cloudfront_distribution" "default" {
   dynamic "ordered_cache_behavior" {
     for_each = var.cloudfront_ordered_cache_behavior
     content {
-      path_pattern     = ordered_cache_behavior.value.path_pattern
-      allowed_methods  = lookup(ordered_cache_behavior.value, "allowed_methods", ["GET", "HEAD"])
-      cached_methods   = lookup(ordered_cache_behavior.value, "cached_methods", ["GET", "HEAD"])
-      target_origin_id = ordered_cache_behavior.value.target_origin_id
+      path_pattern               = ordered_cache_behavior.value.path_pattern
+      allowed_methods            = lookup(ordered_cache_behavior.value, "allowed_methods", ["GET", "HEAD"])
+      cached_methods             = lookup(ordered_cache_behavior.value, "cached_methods", ["GET", "HEAD"])
+      cache_policy_id            = lookup(ordered_cache_behavior.value, "cache_policy_id", null)
+      response_headers_policy_id = lookup(ordered_cache_behavior.value, "response_headers_policy_id", null)
+      target_origin_id           = ordered_cache_behavior.value.target_origin_id
 
-      forwarded_values {
-        headers                 = lookup(ordered_cache_behavior.value, "headers", [])
-        query_string            = lookup(ordered_cache_behavior.value, "query_string", false)
-        query_string_cache_keys = lookup(ordered_cache_behavior.value, "query_string_cache_keys", [])
-
-        cookies {
-          forward           = lookup(ordered_cache_behavior.value, "forward", "none")
-          whitelisted_names = lookup(ordered_cache_behavior.value, "whitelisted_names", [])
+      dynamic "forwarded_values" {
+        for_each = lookup(ordered_cache_behavior.value, "true", null) ? [true] : []
+        content {
+          headers                 = lookup(ordered_cache_behavior.value, "headers", [])
+          query_string            = lookup(ordered_cache_behavior.value, "query_string", false)
+          query_string_cache_keys = lookup(ordered_cache_behavior.value, "query_string_cache_keys", [])
+          cookies {
+            forward           = lookup(ordered_cache_behavior.value, "forward", "none")
+            whitelisted_names = lookup(ordered_cache_behavior.value, "whitelisted_names", [])
+          }
         }
       }
 
