@@ -6,11 +6,15 @@ resource "aws_cloudfront_origin_access_identity" "this" {
   }
 }
 
+data "aws_canonical_user_id" "current" {
+  count = length(local.s3_acl_grants) > 0 ? 1 : 0
+}
+
 resource "aws_s3_bucket" "name" {
   bucket        = var.name
   force_destroy = var.force_destroy
   tags          = var.tags
-  acl           = var.acl
+  acl           = length(local.s3_acl_grants) > 0 ? null : var.acl
   policy        = var.policy == "" ? data.aws_iam_policy_document.origin_website.json : var.policy
 
   dynamic "website" {
@@ -183,6 +187,34 @@ resource "aws_s3_bucket" "name" {
       }
     }
   }
+}
+
+resource "aws_s3_bucket_acl" "this" {
+  count  = length(local.s3_acl_grants) > 0 ? 1 : 0
+  bucket = aws_s3_bucket.name.id
+
+  access_control_policy {
+    dynamic "grant" {
+      for_each = local.s3_acl_grants
+
+      content {
+        permission = grant.value.permission
+
+        grantee {
+          id            = lookup(grant.value, "id", null)
+          type          = grant.value.type
+          uri           = lookup(grant.value, "uri", null)
+          email_address = lookup(grant.value, "email_address", lookup(grant.value, "email", null))
+        }
+      }
+    }
+
+    owner {
+      id = lookup(var.acl_owner, "id", data.aws_canonical_user_id.current[0].id)
+    }
+  }
+
+  depends_on = [aws_s3_bucket_ownership_controls.this]
 }
 
 data "aws_iam_policy_document" "origin_website" {

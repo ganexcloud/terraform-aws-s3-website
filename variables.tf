@@ -60,6 +60,18 @@ variable "acl" {
   default     = "private"
 }
 
+variable "grant" {
+  description = "ACL policy grants to apply through aws_s3_bucket_acl. Supports either permission or permissions for compatibility with terraform-aws-s3-bucket style inputs."
+  type        = any
+  default     = []
+}
+
+variable "acl_owner" {
+  description = "ACL owner configuration. If omitted, the current AWS canonical user ID is used."
+  type        = map(string)
+  default     = {}
+}
+
 variable "origin_path" {
   type        = string
   description = "An optional element that causes CloudFront to request your content from a directory in your Amazon S3 bucket or your custom origin. It must begin with a /. Do not add a / at the end of the path."
@@ -192,7 +204,7 @@ variable "cloudfront_default_target_origin_id" {
   description = "The value of ID for the origin that you want CloudFront to route requests to the default cache behavior"
 }
 
-variable cloudfront_ordered_cache_behavior {
+variable "cloudfront_ordered_cache_behavior" {
   type        = any
   default     = []
   description = "(Optional) - An ordered list of cache behaviors resource for this distribution. List from top to bottom in order of precedence. The topmost cache behavior will have precedence 0."
