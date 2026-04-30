@@ -6,12 +6,25 @@ resource "aws_cloudfront_origin_access_identity" "this" {
   }
 }
 
+data "aws_canonical_user_id" "current" {}
+
 resource "aws_s3_bucket" "name" {
   bucket        = var.name
   force_destroy = var.force_destroy
   tags          = var.tags
-  acl           = var.acl
+  acl           = length(local.effective_acl_grants) > 0 ? null : var.acl
   policy        = var.policy == "" ? data.aws_iam_policy_document.origin_website.json : var.policy
+
+  dynamic "grant" {
+    for_each = local.effective_acl_grants
+
+    content {
+      id          = lookup(grant.value, "id", null)
+      type        = grant.value.type
+      permissions = grant.value.permissions
+      uri         = lookup(grant.value, "uri", null)
+    }
+  }
 
   dynamic "website" {
     for_each = length(keys(var.website)) == 0 ? [] : [var.website]
