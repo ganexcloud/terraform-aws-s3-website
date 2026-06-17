@@ -17,6 +17,15 @@ resource "aws_s3_bucket" "name" {
   acl           = length(local.s3_acl_grants) > 0 ? null : var.acl
   policy        = var.policy == "" ? data.aws_iam_policy_document.origin_website.json : var.policy
 
+  dynamic "logging" {
+    for_each = var.logging_target_bucket != "" ? ["enable"] : []
+
+    content {
+      target_bucket = var.logging_target_bucket
+      target_prefix = var.logging_target_prefix
+    }
+  }
+
   dynamic "website" {
     for_each = length(keys(var.website)) == 0 ? [] : [var.website]
 

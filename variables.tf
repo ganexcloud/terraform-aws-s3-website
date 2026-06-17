@@ -329,6 +329,18 @@ variable "s3_cors_rule" {
   default     = []
 }
 
+variable "logging_target_bucket" {
+  description = "(Optional) Name of the bucket where S3 server access logs will be delivered."
+  type        = string
+  default     = ""
+}
+
+variable "logging_target_prefix" {
+  description = "(Optional) Prefix for S3 server access log objects."
+  type        = string
+  default     = ""
+}
+
 variable "block_public_acls" {
   description = "Whether Amazon S3 should block public ACLs for this bucket."
   type        = bool

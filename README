@@ -16,3 +16,7 @@ cloudfront_custom_origins = [
       origin_ssl_protocols   = ["TLSv1","TLSv1.1","TLSv1.2"]
     },  
   ]
+
+To enable S3 server access logging, set `logging_target_bucket` and optionally
+`logging_target_prefix`. The target bucket must already exist in the same AWS
+account and Region and must allow the S3 logging service to write log objects.
