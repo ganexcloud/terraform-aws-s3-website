@@ -348,6 +348,7 @@ resource "aws_cloudfront_distribution" "default" {
       allowed_methods            = lookup(ordered_cache_behavior.value, "allowed_methods", ["GET", "HEAD"])
       cached_methods             = lookup(ordered_cache_behavior.value, "cached_methods", ["GET", "HEAD"])
       cache_policy_id            = lookup(ordered_cache_behavior.value, "cache_policy_id", null)
+      origin_request_policy_id   = lookup(ordered_cache_behavior.value, "origin_request_policy_id", null)
       response_headers_policy_id = lookup(ordered_cache_behavior.value, "response_headers_policy_id", null)
       target_origin_id           = ordered_cache_behavior.value.target_origin_id
 
