@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0](https://github.com/ganexcloud/terraform-aws-s3-website/compare/v0.1.0...v1.0.0) (2026-08-11)
+
+### ⚠ BREAKING CHANGES
+
+* **s3-website:** stabilize the v1 module contract without removing public inputs or outputs.
+
+### Features
+
+* **s3-website:** modernize module for terraform 1.6 ([b84c6ac](https://github.com/ganexcloud/terraform-aws-s3-website/commit/b84c6ac3d3eb3d8854f0c582ee92b0442827a44d))
+
 ## [1.0.0](https://github.com/ganexcloud/terraform-aws-cloud-custodian/compare/v0.1.0...v1.0.0) (2026-08-07)
 
 ### ⚠ BREAKING CHANGES
