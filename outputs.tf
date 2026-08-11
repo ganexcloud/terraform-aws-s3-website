@@ -10,17 +10,17 @@ output "bucket_demain_name" {
 
 output "cloudfront_id" {
   description = "The identifier for the cloudfront distribution"
-  value       = element(concat(aws_cloudfront_distribution.default.*.id, list("")), 0)
+  value       = try(aws_cloudfront_distribution.default[0].id, "")
 }
 
 output "cloudfront_arn" {
   description = "The ARN (Amazon Resource Name) for the distribution."
-  value       = element(concat(aws_cloudfront_distribution.default.*.arn, list("")), 0)
+  value       = try(aws_cloudfront_distribution.default[0].arn, "")
 }
 
 output "cloudfront_domain_name" {
   description = "The domain name corresponding to the distribution."
-  value       = element(concat(aws_cloudfront_distribution.default.*.domain_name, list("")), 0)
+  value       = try(aws_cloudfront_distribution.default[0].domain_name, "")
 }
 
 output "bucket_arn" {
