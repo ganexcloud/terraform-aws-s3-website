@@ -387,7 +387,7 @@ resource "aws_cloudfront_distribution" "default" {
   }
 
   dynamic "origin" {
-    for_each = length(var.cloudfront_custom_origins) == 0 ? list(1) : []
+    for_each = length(var.cloudfront_custom_origins) == 0 ? [1] : []
     content {
       domain_name = aws_s3_bucket.name.bucket_domain_name
       origin_id   = var.cloudfront_distribution_name
@@ -511,7 +511,7 @@ resource "aws_cloudfront_response_headers_policy" "this" {
   }
 
   dynamic "custom_headers_config" {
-    for_each = length(lookup(var.cloudfront_response_headers_policy, "custom_headers_config", [])) == 0 ? [] : list(1)
+    for_each = length(lookup(var.cloudfront_response_headers_policy, "custom_headers_config", [])) == 0 ? [] : [1]
     content {
       dynamic "items" {
         for_each = length(lookup(var.cloudfront_response_headers_policy, "custom_headers_config", [])) == 0 ? [] : lookup(var.cloudfront_response_headers_policy, "custom_headers_config", [])

@@ -1,4 +1,3 @@
-
 terraform {
   required_version = ">= 1.6.0"
 
@@ -8,4 +7,8 @@ terraform {
       version = ">= 5.40.0, < 7.0.0"
     }
   }
+}
+
+provider "aws" {
+  region = var.region
 }

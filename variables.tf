@@ -296,7 +296,7 @@ variable "route53_parent_zone_name" {
 variable "route53_evaluate_target_health" {
   description = "Set to true if you want Route 53 to determine whether to respond to DNS queries"
   type        = bool
-  default     = "false"
+  default     = false
 }
 
 variable "acm_certificate_arn" {
