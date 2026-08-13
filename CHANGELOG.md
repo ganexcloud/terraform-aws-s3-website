@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1](https://github.com/ganexcloud/terraform-aws-s3-website/compare/v1.0.0...v1.0.1) (2026-08-13)
+
+### Bug Fixes
+
+* **s3-website:** migrate deprecated s3 configuration ([#3](https://github.com/ganexcloud/terraform-aws-s3-website/issues/3)) ([15e7be7](https://github.com/ganexcloud/terraform-aws-s3-website/commit/15e7be71e7870bd7f243afa575551091e925108f))
+
 ## [1.0.0](https://github.com/ganexcloud/terraform-aws-s3-website/compare/v0.1.0...v1.0.0) (2026-08-11)
 
 ### ⚠ BREAKING CHANGES
