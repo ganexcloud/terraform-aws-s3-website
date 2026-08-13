@@ -14,28 +14,20 @@ resource "aws_s3_bucket" "name" {
   bucket        = var.name
   force_destroy = var.force_destroy
   tags          = var.tags
-  acl           = length(local.s3_acl_grants) > 0 ? null : var.acl
-  policy        = var.policy == "" ? data.aws_iam_policy_document.origin_website.json : var.policy
+}
 
-  dynamic "logging" {
-    for_each = var.logging_target_bucket != "" ? ["enable"] : []
+resource "aws_s3_bucket_logging" "this" {
+  count = var.logging_target_bucket == "" ? 0 : 1
 
-    content {
-      target_bucket = var.logging_target_bucket
-      target_prefix = var.logging_target_prefix
-    }
-  }
+  bucket        = aws_s3_bucket.name.id
+  target_bucket = var.logging_target_bucket
+  target_prefix = var.logging_target_prefix
+}
 
-  dynamic "website" {
-    for_each = length(keys(var.website)) == 0 ? [] : [var.website]
+resource "aws_s3_bucket_cors_configuration" "this" {
+  count = length(try(jsondecode(var.s3_cors_rule), var.s3_cors_rule)) == 0 ? 0 : 1
 
-    content {
-      index_document           = lookup(website.value, "index_document", null)
-      error_document           = lookup(website.value, "error_document", null)
-      redirect_all_requests_to = lookup(website.value, "redirect_all_requests_to", null)
-      routing_rules            = lookup(website.value, "routing_rules", null)
-    }
-  }
+  bucket = aws_s3_bucket.name.id
 
   dynamic "cors_rule" {
     for_each = try(jsondecode(var.s3_cors_rule), var.s3_cors_rule)
@@ -48,29 +40,54 @@ resource "aws_s3_bucket" "name" {
       max_age_seconds = lookup(cors_rule.value, "max_age_seconds", null)
     }
   }
+}
 
-  dynamic "versioning" {
-    for_each = length(keys(var.versioning)) == 0 ? [] : [var.versioning]
+resource "aws_s3_bucket_versioning" "this" {
+  count = length(keys(var.versioning)) == 0 ? 0 : 1
 
-    content {
-      enabled    = lookup(versioning.value, "enabled", null)
-      mfa_delete = lookup(versioning.value, "mfa_delete", null)
-    }
+  bucket = aws_s3_bucket.name.id
+
+  versioning_configuration {
+    status     = try(tobool(lookup(var.versioning, "enabled", false)), false) ? "Enabled" : "Suspended"
+    mfa_delete = try(tobool(lookup(var.versioning, "mfa_delete", false)), false) ? "Enabled" : "Disabled"
   }
+}
 
-  dynamic "lifecycle_rule" {
+resource "aws_s3_bucket_lifecycle_configuration" "this" {
+  count = length(var.lifecycle_rule) == 0 ? 0 : 1
+
+  bucket = aws_s3_bucket.name.id
+
+  dynamic "rule" {
     for_each = var.lifecycle_rule
 
     content {
-      id                                     = lookup(lifecycle_rule.value, "id", null)
-      prefix                                 = lookup(lifecycle_rule.value, "prefix", null)
-      tags                                   = lookup(lifecycle_rule.value, "tags", null)
-      abort_incomplete_multipart_upload_days = lookup(lifecycle_rule.value, "abort_incomplete_multipart_upload_days", null)
-      enabled                                = lifecycle_rule.value.enabled
+      id     = lookup(rule.value, "id", null)
+      status = try(tobool(lookup(rule.value, "enabled", false)), false) ? "Enabled" : "Disabled"
 
-      # Max 1 block - expiration
+      filter {
+        prefix = length(lookup(rule.value, "tags", {})) == 0 ? lookup(rule.value, "prefix", null) : null
+
+        dynamic "and" {
+          for_each = length(lookup(rule.value, "tags", {})) == 0 ? [] : [true]
+
+          content {
+            prefix = lookup(rule.value, "prefix", null)
+            tags   = lookup(rule.value, "tags", null)
+          }
+        }
+      }
+
+      dynamic "abort_incomplete_multipart_upload" {
+        for_each = lookup(rule.value, "abort_incomplete_multipart_upload_days", null) == null ? [] : [lookup(rule.value, "abort_incomplete_multipart_upload_days", null)]
+
+        content {
+          days_after_initiation = abort_incomplete_multipart_upload.value
+        }
+      }
+
       dynamic "expiration" {
-        for_each = length(keys(lookup(lifecycle_rule.value, "expiration", {}))) == 0 ? [] : [lookup(lifecycle_rule.value, "expiration", {})]
+        for_each = length(keys(lookup(rule.value, "expiration", {}))) == 0 ? [] : [lookup(rule.value, "expiration", {})]
 
         content {
           date                         = lookup(expiration.value, "date", null)
@@ -79,9 +96,8 @@ resource "aws_s3_bucket" "name" {
         }
       }
 
-      # Several blocks - transition
       dynamic "transition" {
-        for_each = lookup(lifecycle_rule.value, "transition", [])
+        for_each = lookup(rule.value, "transition", [])
 
         content {
           date          = lookup(transition.value, "date", null)
@@ -90,106 +106,88 @@ resource "aws_s3_bucket" "name" {
         }
       }
 
-      # Max 1 block - noncurrent_version_expiration
       dynamic "noncurrent_version_expiration" {
-        for_each = length(keys(lookup(lifecycle_rule.value, "noncurrent_version_expiration", {}))) == 0 ? [] : [lookup(lifecycle_rule.value, "noncurrent_version_expiration", {})]
+        for_each = length(keys(lookup(rule.value, "noncurrent_version_expiration", {}))) == 0 ? [] : [lookup(rule.value, "noncurrent_version_expiration", {})]
 
         content {
-          days = lookup(noncurrent_version_expiration.value, "days", null)
+          noncurrent_days = lookup(noncurrent_version_expiration.value, "days", null)
         }
       }
 
-      # Several blocks - noncurrent_version_transition
       dynamic "noncurrent_version_transition" {
-        for_each = lookup(lifecycle_rule.value, "noncurrent_version_transition", [])
+        for_each = lookup(rule.value, "noncurrent_version_transition", [])
 
         content {
-          days          = lookup(noncurrent_version_transition.value, "days", null)
-          storage_class = noncurrent_version_transition.value.storage_class
+          noncurrent_days = lookup(noncurrent_version_transition.value, "days", null)
+          storage_class   = noncurrent_version_transition.value.storage_class
         }
       }
     }
   }
+}
 
-  # Max 1 block - replication_configuration
-  dynamic "replication_configuration" {
-    for_each = length(keys(var.replication_configuration)) == 0 ? [] : [var.replication_configuration]
+resource "aws_s3_bucket_replication_configuration" "this" {
+  count = length(keys(var.replication_configuration)) == 0 ? 0 : 1
+
+  bucket = aws_s3_bucket.name.id
+  role   = var.replication_configuration.role
+
+  dynamic "rule" {
+    for_each = var.replication_configuration.rules
 
     content {
-      role = replication_configuration.value.role
+      id       = lookup(rule.value, "id", null)
+      priority = lookup(rule.value, "priority", null)
+      status   = lookup(rule.value, "status", null)
 
-      dynamic "rules" {
-        for_each = replication_configuration.value.rules
+      filter {
+        prefix = length(lookup(lookup(rule.value, "filter", {}), "tags", {})) == 0 ? lookup(lookup(rule.value, "filter", {}), "prefix", lookup(rule.value, "prefix", null)) : null
 
-        content {
-          id       = lookup(rules.value, "id", null)
-          priority = lookup(rules.value, "priority", null)
-          prefix   = lookup(rules.value, "prefix", null)
-          status   = lookup(rules.value, "status", null)
+        dynamic "and" {
+          for_each = length(lookup(lookup(rule.value, "filter", {}), "tags", {})) == 0 ? [] : [true]
 
-          dynamic "destination" {
-            for_each = length(keys(lookup(rules.value, "destination", {}))) == 0 ? [] : [lookup(rules.value, "destination", {})]
-
-            content {
-              bucket             = lookup(destination.value, "bucket", null)
-              storage_class      = lookup(destination.value, "storage_class", null)
-              replica_kms_key_id = lookup(destination.value, "replica_kms_key_id", null)
-              account_id         = lookup(destination.value, "account_id", null)
-
-              dynamic "access_control_translation" {
-                for_each = length(keys(lookup(destination.value, "access_control_translation", {}))) == 0 ? [] : [lookup(destination.value, "access_control_translation", {})]
-
-                content {
-                  owner = access_control_translation.value.owner
-                }
-              }
-            }
+          content {
+            prefix = lookup(lookup(rule.value, "filter", {}), "prefix", lookup(rule.value, "prefix", null))
+            tags   = lookup(lookup(rule.value, "filter", {}), "tags", null)
           }
-
-          dynamic "source_selection_criteria" {
-            for_each = length(keys(lookup(rules.value, "source_selection_criteria", {}))) == 0 ? [] : [lookup(rules.value, "source_selection_criteria", {})]
-
-            content {
-
-              dynamic "sse_kms_encrypted_objects" {
-                for_each = length(keys(lookup(source_selection_criteria.value, "sse_kms_encrypted_objects", {}))) == 0 ? [] : [lookup(source_selection_criteria.value, "sse_kms_encrypted_objects", {})]
-
-                content {
-
-                  enabled = sse_kms_encrypted_objects.value.enabled
-                }
-              }
-            }
-          }
-
-          dynamic "filter" {
-            for_each = length(keys(lookup(rules.value, "filter", {}))) == 0 ? [] : [lookup(rules.value, "filter", {})]
-
-            content {
-              prefix = lookup(filter.value, "prefix", null)
-              tags   = lookup(filter.value, "tags", null)
-            }
-          }
-
         }
       }
-    }
-  }
 
-  # Server Side Encryption Configuration
-  dynamic "server_side_encryption_configuration" {
-    for_each = length(keys(var.server_side_encryption_configuration)) == 0 ? [] : [var.server_side_encryption_configuration]
-    content {
-      dynamic "rule" {
-        for_each = length(keys(lookup(server_side_encryption_configuration.value, "rule", {}))) == 0 ? [] : [lookup(server_side_encryption_configuration.value, "rule", {})]
+      dynamic "destination" {
+        for_each = length(keys(lookup(rule.value, "destination", {}))) == 0 ? [] : [lookup(rule.value, "destination", {})]
+
         content {
-          bucket_key_enabled = lookup(rule.value, "bucket_key_enabled", null)
-          dynamic "apply_server_side_encryption_by_default" {
-            for_each = length(keys(lookup(rule.value, "apply_server_side_encryption_by_default", {}))) == 0 ? [] : [
-            lookup(rule.value, "apply_server_side_encryption_by_default", {})]
+          account       = lookup(destination.value, "account_id", null)
+          bucket        = lookup(destination.value, "bucket", null)
+          storage_class = lookup(destination.value, "storage_class", null)
+
+          dynamic "access_control_translation" {
+            for_each = length(keys(lookup(destination.value, "access_control_translation", {}))) == 0 ? [] : [lookup(destination.value, "access_control_translation", {})]
+
             content {
-              sse_algorithm     = apply_server_side_encryption_by_default.value.sse_algorithm
-              kms_master_key_id = lookup(apply_server_side_encryption_by_default.value, "kms_master_key_id", null)
+              owner = access_control_translation.value.owner
+            }
+          }
+
+          dynamic "encryption_configuration" {
+            for_each = lookup(destination.value, "replica_kms_key_id", null) == null ? [] : [lookup(destination.value, "replica_kms_key_id", null)]
+
+            content {
+              replica_kms_key_id = encryption_configuration.value
+            }
+          }
+        }
+      }
+
+      dynamic "source_selection_criteria" {
+        for_each = length(keys(lookup(rule.value, "source_selection_criteria", {}))) == 0 ? [] : [lookup(rule.value, "source_selection_criteria", {})]
+
+        content {
+          dynamic "sse_kms_encrypted_objects" {
+            for_each = length(keys(lookup(source_selection_criteria.value, "sse_kms_encrypted_objects", {}))) == 0 ? [] : [lookup(source_selection_criteria.value, "sse_kms_encrypted_objects", {})]
+
+            content {
+              status = try(tobool(lookup(sse_kms_encrypted_objects.value, "enabled", false)), false) ? "Enabled" : "Disabled"
             }
           }
         }
@@ -198,28 +196,90 @@ resource "aws_s3_bucket" "name" {
   }
 }
 
-resource "aws_s3_bucket_acl" "this" {
-  count  = length(local.s3_acl_grants) > 0 ? 1 : 0
+resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
+  count = length(keys(var.server_side_encryption_configuration)) == 0 ? 0 : 1
+
   bucket = aws_s3_bucket.name.id
 
-  access_control_policy {
-    dynamic "grant" {
-      for_each = local.s3_acl_grants
+  dynamic "rule" {
+    for_each = length(keys(lookup(var.server_side_encryption_configuration, "rule", {}))) == 0 ? [] : [lookup(var.server_side_encryption_configuration, "rule", {})]
 
-      content {
-        permission = grant.value.permission
+    content {
+      bucket_key_enabled = lookup(rule.value, "bucket_key_enabled", null)
 
-        grantee {
-          id            = lookup(grant.value, "id", null)
-          type          = grant.value.type
-          uri           = lookup(grant.value, "uri", null)
-          email_address = lookup(grant.value, "email_address", lookup(grant.value, "email", null))
+      dynamic "apply_server_side_encryption_by_default" {
+        for_each = length(keys(lookup(rule.value, "apply_server_side_encryption_by_default", {}))) == 0 ? [] : [lookup(rule.value, "apply_server_side_encryption_by_default", {})]
+
+        content {
+          sse_algorithm     = apply_server_side_encryption_by_default.value.sse_algorithm
+          kms_master_key_id = lookup(apply_server_side_encryption_by_default.value, "kms_master_key_id", null)
         }
       }
     }
+  }
+}
 
-    owner {
-      id = lookup(var.acl_owner, "id", data.aws_canonical_user_id.current[0].id)
+resource "aws_s3_bucket_website_configuration" "this" {
+  count = length(keys(var.website)) == 0 ? 0 : 1
+
+  bucket        = aws_s3_bucket.name.id
+  routing_rules = lookup(var.website, "routing_rules", null)
+
+  dynamic "index_document" {
+    for_each = lookup(var.website, "index_document", null) == null ? [] : [lookup(var.website, "index_document", null)]
+
+    content {
+      suffix = index_document.value
+    }
+  }
+
+  dynamic "error_document" {
+    for_each = lookup(var.website, "error_document", null) == null ? [] : [lookup(var.website, "error_document", null)]
+
+    content {
+      key = error_document.value
+    }
+  }
+
+  dynamic "redirect_all_requests_to" {
+    for_each = lookup(var.website, "redirect_all_requests_to", null) == null ? [] : [lookup(var.website, "redirect_all_requests_to", null)]
+
+    content {
+      host_name = trimprefix(trimprefix(redirect_all_requests_to.value, "https://"), "http://")
+      protocol = startswith(redirect_all_requests_to.value, "https://") ? "https" : (
+        startswith(redirect_all_requests_to.value, "http://") ? "http" : null
+      )
+    }
+  }
+}
+
+resource "aws_s3_bucket_acl" "this" {
+  count  = var.object_ownership == "BucketOwnerEnforced" ? 0 : 1
+  bucket = aws_s3_bucket.name.id
+  acl    = length(local.s3_acl_grants) == 0 ? var.acl : null
+
+  dynamic "access_control_policy" {
+    for_each = length(local.s3_acl_grants) == 0 ? [] : [true]
+
+    content {
+      dynamic "grant" {
+        for_each = local.s3_acl_grants
+
+        content {
+          permission = grant.value.permission
+
+          grantee {
+            id            = lookup(grant.value, "id", null)
+            type          = grant.value.type
+            uri           = lookup(grant.value, "uri", null)
+            email_address = lookup(grant.value, "email_address", lookup(grant.value, "email", null))
+          }
+        }
+      }
+
+      owner {
+        id = lookup(var.acl_owner, "id", data.aws_canonical_user_id.current[0].id)
+      }
     }
   }
 
@@ -236,6 +296,11 @@ data "aws_iam_policy_document" "origin_website" {
       identifiers = ["*"]
     }
   }
+}
+
+resource "aws_s3_bucket_policy" "this" {
+  bucket = aws_s3_bucket.name.id
+  policy = var.policy == "" ? data.aws_iam_policy_document.origin_website.json : var.policy
 }
 
 resource "aws_s3_bucket_notification" "this" {
