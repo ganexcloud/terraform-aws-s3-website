@@ -14,8 +14,6 @@ resource "aws_s3_bucket" "name" {
   bucket        = var.name
   force_destroy = var.force_destroy
   tags          = var.tags
-  acl           = length(local.s3_acl_grants) > 0 ? null : var.acl
-  policy        = var.policy == "" ? data.aws_iam_policy_document.origin_website.json : var.policy
 
   dynamic "logging" {
     for_each = var.logging_target_bucket != "" ? ["enable"] : []
@@ -23,17 +21,6 @@ resource "aws_s3_bucket" "name" {
     content {
       target_bucket = var.logging_target_bucket
       target_prefix = var.logging_target_prefix
-    }
-  }
-
-  dynamic "website" {
-    for_each = length(keys(var.website)) == 0 ? [] : [var.website]
-
-    content {
-      index_document           = lookup(website.value, "index_document", null)
-      error_document           = lookup(website.value, "error_document", null)
-      redirect_all_requests_to = lookup(website.value, "redirect_all_requests_to", null)
-      routing_rules            = lookup(website.value, "routing_rules", null)
     }
   }
 
@@ -198,28 +185,67 @@ resource "aws_s3_bucket" "name" {
   }
 }
 
+resource "aws_s3_bucket_website_configuration" "this" {
+  count = length(keys(var.website)) == 0 ? 0 : 1
+
+  bucket        = aws_s3_bucket.name.id
+  routing_rules = lookup(var.website, "routing_rules", null)
+
+  dynamic "index_document" {
+    for_each = lookup(var.website, "index_document", null) == null ? [] : [lookup(var.website, "index_document", null)]
+
+    content {
+      suffix = index_document.value
+    }
+  }
+
+  dynamic "error_document" {
+    for_each = lookup(var.website, "error_document", null) == null ? [] : [lookup(var.website, "error_document", null)]
+
+    content {
+      key = error_document.value
+    }
+  }
+
+  dynamic "redirect_all_requests_to" {
+    for_each = lookup(var.website, "redirect_all_requests_to", null) == null ? [] : [lookup(var.website, "redirect_all_requests_to", null)]
+
+    content {
+      host_name = trimprefix(trimprefix(redirect_all_requests_to.value, "https://"), "http://")
+      protocol = startswith(redirect_all_requests_to.value, "https://") ? "https" : (
+        startswith(redirect_all_requests_to.value, "http://") ? "http" : null
+      )
+    }
+  }
+}
+
 resource "aws_s3_bucket_acl" "this" {
-  count  = length(local.s3_acl_grants) > 0 ? 1 : 0
+  count  = var.object_ownership == "BucketOwnerEnforced" ? 0 : 1
   bucket = aws_s3_bucket.name.id
+  acl    = length(local.s3_acl_grants) == 0 ? var.acl : null
 
-  access_control_policy {
-    dynamic "grant" {
-      for_each = local.s3_acl_grants
+  dynamic "access_control_policy" {
+    for_each = length(local.s3_acl_grants) == 0 ? [] : [true]
 
-      content {
-        permission = grant.value.permission
+    content {
+      dynamic "grant" {
+        for_each = local.s3_acl_grants
 
-        grantee {
-          id            = lookup(grant.value, "id", null)
-          type          = grant.value.type
-          uri           = lookup(grant.value, "uri", null)
-          email_address = lookup(grant.value, "email_address", lookup(grant.value, "email", null))
+        content {
+          permission = grant.value.permission
+
+          grantee {
+            id            = lookup(grant.value, "id", null)
+            type          = grant.value.type
+            uri           = lookup(grant.value, "uri", null)
+            email_address = lookup(grant.value, "email_address", lookup(grant.value, "email", null))
+          }
         }
       }
-    }
 
-    owner {
-      id = lookup(var.acl_owner, "id", data.aws_canonical_user_id.current[0].id)
+      owner {
+        id = lookup(var.acl_owner, "id", data.aws_canonical_user_id.current[0].id)
+      }
     }
   }
 
@@ -236,6 +262,11 @@ data "aws_iam_policy_document" "origin_website" {
       identifiers = ["*"]
     }
   }
+}
+
+resource "aws_s3_bucket_policy" "this" {
+  bucket = aws_s3_bucket.name.id
+  policy = var.policy == "" ? data.aws_iam_policy_document.origin_website.json : var.policy
 }
 
 resource "aws_s3_bucket_notification" "this" {
