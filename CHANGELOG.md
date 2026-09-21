@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.2](https://github.com/ganexcloud/terraform-aws-s3-website/compare/v1.0.1...v1.0.2) (2026-09-21)
+
+### Bug Fixes
+
+* **s3:** support noncurrent version retention (CDA-52666) ([#4](https://github.com/ganexcloud/terraform-aws-s3-website/issues/4)) ([67a881d](https://github.com/ganexcloud/terraform-aws-s3-website/commit/67a881dcc1db6825a3e1530cd452524230ad5a78))
+
 ## [1.0.1](https://github.com/ganexcloud/terraform-aws-s3-website/compare/v1.0.0...v1.0.1) (2026-08-13)
 
 ### Bug Fixes
