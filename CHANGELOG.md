@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.3](https://github.com/ganexcloud/terraform-aws-s3-website/compare/v1.0.2...v1.0.3) (2026-09-21)
+
+### Bug Fixes
+
+* **cloudfront:** preserve origin access control ([#5](https://github.com/ganexcloud/terraform-aws-s3-website/issues/5)) ([605c841](https://github.com/ganexcloud/terraform-aws-s3-website/commit/605c8418f4f6dd6a46e27cf14c7638be32f6d953))
+
 ## [1.0.2](https://github.com/ganexcloud/terraform-aws-s3-website/compare/v1.0.1...v1.0.2) (2026-09-21)
 
 ### Bug Fixes
