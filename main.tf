@@ -110,7 +110,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
         for_each = length(keys(lookup(rule.value, "noncurrent_version_expiration", {}))) == 0 ? [] : [lookup(rule.value, "noncurrent_version_expiration", {})]
 
         content {
-          noncurrent_days = lookup(noncurrent_version_expiration.value, "days", null)
+          newer_noncurrent_versions = lookup(noncurrent_version_expiration.value, "newer_noncurrent_versions", null)
+          noncurrent_days           = lookup(noncurrent_version_expiration.value, "days", null)
         }
       }
 
