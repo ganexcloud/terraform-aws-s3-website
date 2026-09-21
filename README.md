@@ -10,6 +10,20 @@ This module requires Terraform 1.6.0 or later and supports AWS provider versions
 
 See [`examples/complete`](examples/complete).
 
+## CloudFront Origin Access Control
+
+For an S3 origin protected by an existing CloudFront Origin Access Control (OAC), set its ID in the respective `cloudfront_custom_origins` item. The module references the OAC; it does not create or manage it.
+
+```hcl
+cloudfront_custom_origins = [
+  {
+    domain_name              = "example.s3.us-east-1.amazonaws.com"
+    origin_access_control_id = "E1234567890ABC"
+    origin_id                = "example-origin"
+  }
+]
+```
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
@@ -70,7 +84,7 @@ No modules.
 | <a name="input_cloudfront_compress"></a> [cloudfront\_compress](#input\_cloudfront\_compress) | Compress content for web requests that include Accept-Encoding: gzip in the request header | `bool` | `false` | no |
 | <a name="input_cloudfront_create_origin_access_identity"></a> [cloudfront\_create\_origin\_access\_identity](#input\_cloudfront\_create\_origin\_access\_identity) | Controls if CloudFront origin access identity should be created | `bool` | `false` | no |
 | <a name="input_cloudfront_custom_error_response"></a> [cloudfront\_custom\_error\_response](#input\_cloudfront\_custom\_error\_response) | List of one or more custom error response element maps | <pre>list(object({<br/>    error_caching_min_ttl = number<br/>    error_code            = number<br/>    response_code         = number<br/>    response_page_path    = string<br/>  }))</pre> | `[]` | no |
-| <a name="input_cloudfront_custom_origins"></a> [cloudfront\_custom\_origins](#input\_cloudfront\_custom\_origins) | One or more custom origins for this distribution (multiples allowed). See documentation for configuration options description https://www.terraform.io/docs/providers/aws/r/cloudfront_distribution.html#origin-arguments | `any` | `[]` | no |
+| <a name="input_cloudfront_custom_origins"></a> [cloudfront\_custom\_origins](#input\_cloudfront\_custom\_origins) | One or more custom origins for this distribution (multiples allowed). Each origin may set origin\_access\_control\_id for an existing CloudFront Origin Access Control. See documentation for configuration options description https://www.terraform.io/docs/providers/aws/r/cloudfront_distribution.html#origin-arguments | `any` | `[]` | no |
 | <a name="input_cloudfront_default_target_origin_id"></a> [cloudfront\_default\_target\_origin\_id](#input\_cloudfront\_default\_target\_origin\_id) | The value of ID for the origin that you want CloudFront to route requests to the default cache behavior | `string` | `null` | no |
 | <a name="input_cloudfront_default_ttl"></a> [cloudfront\_default\_ttl](#input\_cloudfront\_default\_ttl) | Default amount of time (in seconds) that an object is in a CloudFront cache | `number` | `86400` | no |
 | <a name="input_cloudfront_distribution_name"></a> [cloudfront\_distribution\_name](#input\_cloudfront\_distribution\_name) | The name of the distribution. | `string` | `""` | no |

@@ -224,7 +224,7 @@ variable "cloudfront_custom_error_response" {
 variable "cloudfront_custom_origins" {
   type        = any
   default     = []
-  description = "One or more custom origins for this distribution (multiples allowed). See documentation for configuration options description https://www.terraform.io/docs/providers/aws/r/cloudfront_distribution.html#origin-arguments"
+  description = "One or more custom origins for this distribution (multiples allowed). Each origin may set origin_access_control_id for an existing CloudFront Origin Access Control. See documentation for configuration options description https://www.terraform.io/docs/providers/aws/r/cloudfront_distribution.html#origin-arguments"
 }
 
 variable "cloudfront_origin_group" {
