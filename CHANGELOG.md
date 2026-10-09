@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0](https://github.com/ganexcloud/terraform-aws-s3-website/compare/v1.0.3...v1.1.0) (2026-10-09)
+
+### Features
+
+* **s3-website:** add managed cloudfront policies ([#6](https://github.com/ganexcloud/terraform-aws-s3-website/issues/6)) ([92a6724](https://github.com/ganexcloud/terraform-aws-s3-website/commit/92a672475bc1a6f6fed69e739f739c833509d771))
+
 ## [1.0.3](https://github.com/ganexcloud/terraform-aws-s3-website/compare/v1.0.2...v1.0.3) (2026-09-21)
 
 ### Bug Fixes
