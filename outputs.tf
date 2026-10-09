@@ -27,3 +27,13 @@ output "bucket_arn" {
   value       = aws_s3_bucket.name.arn
   description = "The ARN of the S3 Bucket project."
 }
+
+output "cloudfront_origin_access_control_id" {
+  description = "ID of the Origin Access Control created by this module, or null when not created."
+  value       = try(aws_cloudfront_origin_access_control.this[0].id, null)
+}
+
+output "cloudfront_cache_policy_id" {
+  description = "ID of the cache policy created by this module, or null when not created."
+  value       = try(aws_cloudfront_cache_policy.this[0].id, null)
+}
