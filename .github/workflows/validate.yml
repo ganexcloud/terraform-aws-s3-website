@@ -36,3 +36,37 @@ jobs:
           terraform init -backend=false
           terraform validate
           pre-commit run --all-files
+
+  contract-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        aws: ["5.40.0", "6.68.0"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.8"
+          terraform_wrapper: false
+      - name: Validate examples and test module contract without AWS access
+        run: bash scripts/validate-provider.sh '${{ matrix.aws }}'
+
+  minimum-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.8"
+          terraform_wrapper: false
+      - name: Preserve modern provider signature verifier
+        run: cp "$(command -v terraform)" "$RUNNER_TEMP/terraform-init"
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.6.0"
+          terraform_wrapper: false
+      - name: Validate minimum runtime and provider without mock test files
+        env:
+          TERRAFORM_INIT_BIN: ${{ runner.temp }}/terraform-init
+        run: bash scripts/validate-provider.sh 5.40.0 compat
