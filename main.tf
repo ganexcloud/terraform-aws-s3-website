@@ -6,6 +6,68 @@ resource "aws_cloudfront_origin_access_identity" "this" {
   }
 }
 
+resource "aws_cloudfront_origin_access_control" "this" {
+  count = var.cloudfront_origin_access_control == null ? 0 : 1
+
+  name                              = var.cloudfront_origin_access_control.name
+  description                       = var.cloudfront_origin_access_control.description
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = var.cloudfront_origin_access_control.signing_behavior
+  signing_protocol                  = var.cloudfront_origin_access_control.signing_protocol
+}
+
+resource "aws_cloudfront_cache_policy" "this" {
+  count = var.cloudfront_cache_policy == null ? 0 : 1
+
+  name        = var.cloudfront_cache_policy.name
+  comment     = var.cloudfront_cache_policy.comment
+  min_ttl     = var.cloudfront_cache_policy.min_ttl
+  default_ttl = var.cloudfront_cache_policy.default_ttl
+  max_ttl     = var.cloudfront_cache_policy.max_ttl
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    enable_accept_encoding_brotli = var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.enable_accept_encoding_brotli
+    enable_accept_encoding_gzip   = var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.enable_accept_encoding_gzip
+
+    cookies_config {
+      cookie_behavior = var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.cookies_config.cookie_behavior
+      dynamic "cookies" {
+        for_each = length(var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.cookies_config.items) > 0 ? [true] : []
+        content {
+          items = var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.cookies_config.items
+        }
+      }
+    }
+
+    headers_config {
+      header_behavior = var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.headers_config.header_behavior
+      dynamic "headers" {
+        for_each = length(var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.headers_config.items) > 0 ? [true] : []
+        content {
+          items = var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.headers_config.items
+        }
+      }
+    }
+
+    query_strings_config {
+      query_string_behavior = var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.query_strings_config.query_string_behavior
+      dynamic "query_strings" {
+        for_each = length(var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.query_strings_config.items) > 0 ? [true] : []
+        content {
+          items = var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.query_strings_config.items
+        }
+      }
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = !local.cloudfront_has_external_cache_policy
+      error_message = "Choose cloudfront_cache_policy or cloudfront_cache_policy_id for the default behavior, not both."
+    }
+  }
+}
+
 data "aws_canonical_user_id" "current" {
   count = length(local.s3_acl_grants) > 0 ? 1 : 0
 }
@@ -370,15 +432,15 @@ resource "aws_cloudfront_distribution" "default" {
     target_origin_id           = var.cloudfront_default_target_origin_id == null ? var.cloudfront_distribution_name : var.cloudfront_default_target_origin_id
     compress                   = var.cloudfront_compress
     trusted_signers            = var.cloudfront_trusted_signers
-    cache_policy_id            = var.cloudfront_cache_policy_id
+    cache_policy_id            = var.cloudfront_cache_policy == null ? var.cloudfront_cache_policy_id : aws_cloudfront_cache_policy.this[0].id
     response_headers_policy_id = length(var.cloudfront_response_headers_policy) > 0 ? aws_cloudfront_response_headers_policy.this[0].id : var.cloudfront_response_headers_policy_id
     viewer_protocol_policy     = var.cloudfront_viewer_protocol_policy
-    default_ttl                = var.cloudfront_default_ttl
-    min_ttl                    = var.cloudfront_min_ttl
-    max_ttl                    = var.cloudfront_max_ttl
+    default_ttl                = var.cloudfront_cache_policy == null ? var.cloudfront_default_ttl : null
+    min_ttl                    = var.cloudfront_cache_policy == null ? var.cloudfront_min_ttl : null
+    max_ttl                    = var.cloudfront_cache_policy == null ? var.cloudfront_max_ttl : null
 
     dynamic "forwarded_values" {
-      for_each = var.cloudfront_use_forwarded_values ? [true] : []
+      for_each = local.cloudfront_use_legacy_forwarding ? [true] : []
       content {
         query_string = var.cloudfront_forward_query_string
         headers      = var.cloudfront_forward_header_values
@@ -413,13 +475,13 @@ resource "aws_cloudfront_distribution" "default" {
       path_pattern               = ordered_cache_behavior.value.path_pattern
       allowed_methods            = lookup(ordered_cache_behavior.value, "allowed_methods", ["GET", "HEAD"])
       cached_methods             = lookup(ordered_cache_behavior.value, "cached_methods", ["GET", "HEAD"])
-      cache_policy_id            = lookup(ordered_cache_behavior.value, "cache_policy_id", null)
+      cache_policy_id            = lookup(ordered_cache_behavior.value, "use_module_cache_policy", false) == true ? try(aws_cloudfront_cache_policy.this[0].id, null) : lookup(ordered_cache_behavior.value, "cache_policy_id", null)
       origin_request_policy_id   = lookup(ordered_cache_behavior.value, "origin_request_policy_id", null)
       response_headers_policy_id = lookup(ordered_cache_behavior.value, "response_headers_policy_id", null)
       target_origin_id           = ordered_cache_behavior.value.target_origin_id
 
       dynamic "forwarded_values" {
-        for_each = lookup(ordered_cache_behavior.value, "true", false) ? [true] : []
+        for_each = lookup(ordered_cache_behavior.value, "use_module_cache_policy", false) == true ? [] : (lookup(ordered_cache_behavior.value, "true", false) ? [true] : [])
         content {
           headers                 = lookup(ordered_cache_behavior.value, "headers", [])
           query_string            = lookup(ordered_cache_behavior.value, "query_string", false)
@@ -431,9 +493,9 @@ resource "aws_cloudfront_distribution" "default" {
         }
       }
 
-      min_ttl                = lookup(ordered_cache_behavior.value, "min_ttl", 0)
-      default_ttl            = lookup(ordered_cache_behavior.value, "default_ttl", 86400)
-      max_ttl                = lookup(ordered_cache_behavior.value, "max_ttl", 31536000)
+      min_ttl                = lookup(ordered_cache_behavior.value, "use_module_cache_policy", false) == true ? null : lookup(ordered_cache_behavior.value, "min_ttl", 0)
+      default_ttl            = lookup(ordered_cache_behavior.value, "use_module_cache_policy", false) == true ? null : lookup(ordered_cache_behavior.value, "default_ttl", 86400)
+      max_ttl                = lookup(ordered_cache_behavior.value, "use_module_cache_policy", false) == true ? null : lookup(ordered_cache_behavior.value, "max_ttl", 31536000)
       compress               = lookup(ordered_cache_behavior.value, "compress", true)
       viewer_protocol_policy = lookup(ordered_cache_behavior.value, "viewer_protocol_policy", "redirect-to-https")
       smooth_streaming       = lookup(ordered_cache_behavior.value, "smooth_streaming", false)
@@ -455,8 +517,9 @@ resource "aws_cloudfront_distribution" "default" {
   dynamic "origin" {
     for_each = length(var.cloudfront_custom_origins) == 0 ? [1] : []
     content {
-      domain_name = aws_s3_bucket.name.bucket_domain_name
-      origin_id   = var.cloudfront_distribution_name
+      domain_name              = var.cloudfront_origin_access_control == null ? aws_s3_bucket.name.bucket_domain_name : aws_s3_bucket.name.bucket_regional_domain_name
+      origin_access_control_id = try(aws_cloudfront_origin_access_control.this[0].id, null)
+      origin_id                = var.cloudfront_distribution_name
     }
   }
 
@@ -464,7 +527,7 @@ resource "aws_cloudfront_distribution" "default" {
     for_each = var.cloudfront_custom_origins
     content {
       domain_name              = origin.value.domain_name
-      origin_access_control_id = lookup(origin.value, "origin_access_control_id", null)
+      origin_access_control_id = lookup(origin.value, "use_module_origin_access_control", false) == true ? try(aws_cloudfront_origin_access_control.this[0].id, null) : lookup(origin.value, "origin_access_control_id", null)
       origin_id                = origin.value.origin_id
       origin_path              = lookup(origin.value, "origin_path", "")
       dynamic "custom_header" {
@@ -517,14 +580,51 @@ resource "aws_cloudfront_distribution" "default" {
 
   viewer_certificate {
     acm_certificate_arn            = var.acm_certificate_arn
-    ssl_support_method             = var.acm_certificate_arn == "" ? "" : "sni-only"
-    minimum_protocol_version       = var.cloudfront_minimum_protocol_version
+    ssl_support_method             = var.acm_certificate_arn == "" ? null : "sni-only"
+    minimum_protocol_version       = var.acm_certificate_arn == "" ? "TLSv1" : var.cloudfront_minimum_protocol_version
     cloudfront_default_certificate = var.acm_certificate_arn == "" ? true : false
   }
 
   restrictions {
     geo_restriction {
       restriction_type = "none"
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = !(local.cloudfront_has_external_cache_policy && local.cloudfront_use_legacy_forwarding)
+      error_message = "Set cloudfront_use_forwarded_values = false when supplying cloudfront_cache_policy_id."
+    }
+    precondition {
+      condition = alltrue([for origin in var.cloudfront_custom_origins :
+        contains([true, false], lookup(origin, "use_module_origin_access_control", false)) &&
+        (lookup(origin, "use_module_origin_access_control", false) == true ? var.cloudfront_origin_access_control != null && !try(length(origin.origin_access_control_id) > 0, false) : true)
+      ])
+      error_message = "use_module_origin_access_control must be boolean; true requires cloudfront_origin_access_control and no external origin_access_control_id."
+    }
+    precondition {
+      condition = alltrue([for origin in var.cloudfront_custom_origins :
+        (lookup(origin, "use_module_origin_access_control", false) == true ? !try(length(origin.custom_origin_config) > 0, false) : true) &&
+        ((lookup(origin, "use_module_origin_access_control", false) == true || try(length(origin.origin_access_control_id) > 0, false)) ?
+          !try(length(origin.s3_origin_config.cloudfront_access_identity_path) > 0, false) &&
+        !try(length(origin.s3_origin_config.origin_access_identity) > 0, false) : true)
+      ])
+      error_message = "The module-created S3 OAC cannot use custom_origin_config; an origin with OAC cannot also use OAI."
+    }
+    precondition {
+      condition = alltrue([for behavior in var.cloudfront_ordered_cache_behavior :
+        contains([true, false], lookup(behavior, "use_module_cache_policy", false)) &&
+        (lookup(behavior, "use_module_cache_policy", false) == true ? var.cloudfront_cache_policy != null && !try(length(behavior.cache_policy_id) > 0, false) : true)
+      ])
+      error_message = "use_module_cache_policy must be boolean; true requires cloudfront_cache_policy and no external cache_policy_id on that behavior."
+    }
+    precondition {
+      condition = alltrue([for behavior in var.cloudfront_ordered_cache_behavior :
+        lookup(behavior, "use_module_cache_policy", false) == true ? true :
+        !(try(length(behavior.cache_policy_id) > 0, false) && lookup(behavior, "true", false))
+      ])
+      error_message = "An ordered behavior with an external cache_policy_id cannot also enable legacy forwarded_values."
     }
   }
 }

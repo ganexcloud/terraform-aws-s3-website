@@ -99,7 +99,7 @@ variable "cloudfront_comment" {
 variable "cloudfront_aliases" {
   description = "List of cloudfront_aliases"
   type        = list(string)
-  default     = [""]
+  default     = []
 }
 
 variable "cloudfront_price_class" {
@@ -111,7 +111,7 @@ variable "cloudfront_price_class" {
 variable "cloudfront_minimum_protocol_version" {
   type        = string
   description = "Cloudfront TLS minimum protocol version"
-  default     = "TLSv1.1_2016"
+  default     = "TLSv1.2_2021"
 }
 
 variable "cloudfront_default_ttl" {
@@ -176,8 +176,8 @@ variable "cloudfront_trusted_signers" {
 
 variable "cloudfront_compress" {
   type        = bool
-  default     = false
-  description = "Compress content for web requests that include Accept-Encoding: gzip in the request header"
+  default     = true
+  description = "Enable automatic compression for eligible content. Cache-policy encoding flags control Gzip/Brotli support."
 }
 
 variable "cloudfront_allowed_methods" {
@@ -239,6 +239,80 @@ variable "cloudfront_cache_policy_id" {
   default     = ""
 }
 
+variable "cloudfront_origin_access_control" {
+  description = "Optional S3 Origin Access Control to create. Used by the automatic bucket origin; explicit origins opt in with use_module_origin_access_control. Bucket permissions remain the consumer's responsibility."
+  type = object({
+    name             = string
+    description      = optional(string)
+    signing_behavior = optional(string, "always")
+    signing_protocol = optional(string, "sigv4")
+  })
+  default = null
+
+  validation {
+    condition = var.cloudfront_origin_access_control == null ? true : (
+      try(length(trimspace(var.cloudfront_origin_access_control.name)) > 0, false) &&
+      contains(["always", "never", "no-override"], var.cloudfront_origin_access_control.signing_behavior) &&
+      var.cloudfront_origin_access_control.signing_protocol == "sigv4"
+    )
+    error_message = "OAC requires a non-empty name, signing_behavior always/never/no-override, and signing_protocol sigv4."
+  }
+}
+
+variable "cloudfront_cache_policy" {
+  description = "Optional cache policy to create and attach to the default behavior. Ordered behaviors opt in with use_module_cache_policy. Existing policy IDs remain supported."
+  type = object({
+    name        = string
+    comment     = optional(string)
+    min_ttl     = optional(number, 0)
+    default_ttl = optional(number, 86400)
+    max_ttl     = optional(number, 31536000)
+    parameters_in_cache_key_and_forwarded_to_origin = optional(object({
+      enable_accept_encoding_brotli = optional(bool, true)
+      enable_accept_encoding_gzip   = optional(bool, true)
+      cookies_config = optional(object({
+        cookie_behavior = optional(string, "none")
+        items           = optional(set(string), [])
+      }), {})
+      headers_config = optional(object({
+        header_behavior = optional(string, "none")
+        items           = optional(set(string), [])
+      }), {})
+      query_strings_config = optional(object({
+        query_string_behavior = optional(string, "none")
+        items                 = optional(set(string), [])
+      }), {})
+    }), {})
+  })
+  default = null
+
+  validation {
+    condition = var.cloudfront_cache_policy == null ? true : (
+      try(length(trimspace(var.cloudfront_cache_policy.name)) > 0, false) &&
+      alltrue([for ttl in [var.cloudfront_cache_policy.min_ttl, var.cloudfront_cache_policy.default_ttl, var.cloudfront_cache_policy.max_ttl] : ttl >= 0 && floor(ttl) == ttl]) &&
+      var.cloudfront_cache_policy.min_ttl <= var.cloudfront_cache_policy.default_ttl &&
+      var.cloudfront_cache_policy.default_ttl <= var.cloudfront_cache_policy.max_ttl
+    )
+    error_message = "Cache policy requires a non-empty name and integer TTLs satisfying 0 <= min_ttl <= default_ttl <= max_ttl."
+  }
+
+  validation {
+    condition = var.cloudfront_cache_policy == null ? true : (
+      contains(["none", "whitelist", "allExcept", "all"], var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.cookies_config.cookie_behavior) &&
+      contains(["none", "whitelist"], var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.headers_config.header_behavior) &&
+      contains(["none", "whitelist", "allExcept", "all"], var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.query_strings_config.query_string_behavior) &&
+      alltrue([
+        for config in [
+          { behavior = var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.cookies_config.cookie_behavior, items = var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.cookies_config.items },
+          { behavior = var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.headers_config.header_behavior, items = var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.headers_config.items },
+          { behavior = var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.query_strings_config.query_string_behavior, items = var.cloudfront_cache_policy.parameters_in_cache_key_and_forwarded_to_origin.query_strings_config.items }
+        ] : contains(["whitelist", "allExcept"], config.behavior) ? length(config.items) > 0 && alltrue([for item in config.items : try(length(trimspace(item)) > 0, false)]) : length(config.items) == 0
+      ])
+    )
+    error_message = "Use supported cache-key behaviors; whitelist/allExcept require non-empty items, while none/all require no items."
+  }
+}
+
 variable "cloudfront_use_forwarded_values" {
   description = "Enable forwarded values configuration that specifies how CloudFront handles query strings, cookies and headers (maximum one)."
   type        = bool
@@ -270,15 +344,15 @@ variable "cloudfront_function_association" {
 }
 
 variable "cloudfront_http_version" {
-  description = "The maximum HTTP version to support on the distribution. Allowed values are http1.1, http2, http2and3, and http3. The default is http2."
+  description = "The maximum HTTP version to support on the distribution. Allowed values are http1.1, http2, http2and3, and http3. The default is http2and3."
   type        = string
-  default     = "http2"
+  default     = "http2and3"
 }
 
 variable "route53_enabled" {
-  description = "Set to false to prevent the module from creating any resources"
+  description = "Whether to create Route 53 DNS records for CloudFront aliases. Disabled by default."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "route53_parent_zone_id" {

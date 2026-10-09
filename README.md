@@ -6,13 +6,15 @@ Terraform module that provisions an S3 bucket configured for website hosting, wi
 
 This module requires Terraform 1.6.0 or later and supports AWS provider versions from 5.40.0 up to, but not including, 7.0.0.
 
+The planned 1.1.0 release changes defaults from 1.0.x: HTTP/2+3, empty aliases, TLSv1.2_2021 for ACM certificates, automatic compression and Gzip/Brotli negotiation in internally created cache policies. Route 53 records now require `route53_enabled = true`. Set it explicitly before upgrading to preserve existing DNS records; otherwise Terraform can plan their removal. Consumers needing older TLS or uncompressed responses must also configure those values explicitly. Review the plan before applying: these default changes affect existing consumers despite the minor release number.
+
 ## Example
 
-See [`examples/complete`](examples/complete).
+See [`examples/complete`](examples/complete), [`examples/private`](examples/private) for internally created policies, and [`examples/existing-policies`](examples/existing-policies) for an external OAC and AWS-managed cache policy. The two policy examples use `us-east-1` and require an existing ACM certificate ARN; the reuse example also requires an existing OAC ID.
 
 ## CloudFront Origin Access Control
 
-For an S3 origin protected by an existing CloudFront Origin Access Control (OAC), set its ID in the respective `cloudfront_custom_origins` item. The module references the OAC; it does not create or manage it.
+For an S3 origin protected by an existing CloudFront Origin Access Control (OAC), set its ID in the respective `cloudfront_custom_origins` item. That OAC remains managed outside this module.
 
 ```hcl
 cloudfront_custom_origins = [
@@ -23,6 +25,24 @@ cloudfront_custom_origins = [
   }
 ]
 ```
+
+To create one S3 OAC, set `cloudfront_origin_access_control = { name = "example-oac" }`. The automatic bucket origin uses it with the regional REST endpoint; explicit origins opt in with `use_module_origin_access_control = true`. Defaults are `always`/`sigv4`. Internal OAC selection cannot be combined with an external ID or `custom_origin_config`; OAC and non-empty OAI paths are mutually exclusive. Existing external OACs remain supported on other compatible origin types.
+
+OAC authenticates CloudFront to the origin, not viewers. S3 OAC requires a REST endpoint, not a website endpoint. The consumer supplies the complete bucket policy through `policy`; it replaces the legacy public-read policy. For private content, explicitly disable website hosting and enable all four public-access-block flags, as in the private example. Configure routing with the explicit origin's `origin_path`, and authorization with exact object ARNs; the top-level `origin_path` retains its legacy policy behavior.
+
+## CloudFront cache policies
+
+To create one cache policy per instance:
+
+```hcl
+cloudfront_cache_policy = { name = "example-cache" }
+```
+
+The policy attaches to the default behavior; ordered behaviors opt in with `use_module_cache_policy = true`. Internal selection omits legacy forwarding and behavior TTLs. To reuse an external or AWS-managed policy, pass `cloudfront_cache_policy_id` and set `cloudfront_use_forwarded_values = false`; ordered behaviors use their own `cache_policy_id`. Internal and external selection are mutually exclusive.
+
+Defaults are TTLs `0` / `86400` / `31536000`, cache-key behaviors `none`, and compression flags `true`. Configure the cache key under `parameters_in_cache_key_and_forwarded_to_origin`; each cookies/headers/query-strings config takes its behavior plus `items`. `whitelist`/`allExcept` require items, while `none`/`all` accept none. Headers support `none`/`whitelist`. TTLs must be non-negative integers with minimum <= default <= maximum.
+
+Both new inputs default to `null`. Their outputs are `null` unless the module creates the respective resource. Explicitly requested policies can be created with `cloudfront_enabled = false`. Validation commands are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
@@ -46,7 +66,9 @@ No modules.
 
 | Name | Type |
 |------|------|
+| [aws_cloudfront_cache_policy.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudfront_cache_policy) | resource |
 | [aws_cloudfront_distribution.default](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudfront_distribution) | resource |
+| [aws_cloudfront_origin_access_control.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudfront_origin_access_control) | resource |
 | [aws_cloudfront_origin_access_identity.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudfront_origin_access_identity) | resource |
 | [aws_cloudfront_response_headers_policy.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudfront_response_headers_policy) | resource |
 | [aws_route53_record.default](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_record) | resource |
@@ -76,12 +98,13 @@ No modules.
 | <a name="input_acm_certificate_arn"></a> [acm\_certificate\_arn](#input\_acm\_certificate\_arn) | ARN of Certificate | `string` | `""` | no |
 | <a name="input_block_public_acls"></a> [block\_public\_acls](#input\_block\_public\_acls) | Whether Amazon S3 should block public ACLs for this bucket. | `bool` | `false` | no |
 | <a name="input_block_public_policy"></a> [block\_public\_policy](#input\_block\_public\_policy) | Whether Amazon S3 should block public bucket policies for this bucket. | `bool` | `false` | no |
-| <a name="input_cloudfront_aliases"></a> [cloudfront\_aliases](#input\_cloudfront\_aliases) | List of cloudfront\_aliases | `list(string)` | <pre>[<br/>  ""<br/>]</pre> | no |
+| <a name="input_cloudfront_aliases"></a> [cloudfront\_aliases](#input\_cloudfront\_aliases) | List of cloudfront\_aliases | `list(string)` | `[]` | no |
 | <a name="input_cloudfront_allowed_methods"></a> [cloudfront\_allowed\_methods](#input\_cloudfront\_allowed\_methods) | List of allowed methods (e.g. GET, PUT, POST, DELETE, HEAD) for AWS CloudFront | `list(string)` | <pre>[<br/>  "GET",<br/>  "HEAD"<br/>]</pre> | no |
+| <a name="input_cloudfront_cache_policy"></a> [cloudfront\_cache\_policy](#input\_cloudfront\_cache\_policy) | Optional cache policy to create and attach to the default behavior. Ordered behaviors opt in with use\_module\_cache\_policy. Existing policy IDs remain supported. | <pre>object({<br/>    name        = string<br/>    comment     = optional(string)<br/>    min_ttl     = optional(number, 0)<br/>    default_ttl = optional(number, 86400)<br/>    max_ttl     = optional(number, 31536000)<br/>    parameters_in_cache_key_and_forwarded_to_origin = optional(object({<br/>      enable_accept_encoding_brotli = optional(bool, true)<br/>      enable_accept_encoding_gzip   = optional(bool, true)<br/>      cookies_config = optional(object({<br/>        cookie_behavior = optional(string, "none")<br/>        items           = optional(set(string), [])<br/>      }), {})<br/>      headers_config = optional(object({<br/>        header_behavior = optional(string, "none")<br/>        items           = optional(set(string), [])<br/>      }), {})<br/>      query_strings_config = optional(object({<br/>        query_string_behavior = optional(string, "none")<br/>        items                 = optional(set(string), [])<br/>      }), {})<br/>    }), {})<br/>  })</pre> | `null` | no |
 | <a name="input_cloudfront_cache_policy_id"></a> [cloudfront\_cache\_policy\_id](#input\_cloudfront\_cache\_policy\_id) | (Optional) - The unique identifier of the cache policy that is attached to the cache behavior. | `string` | `""` | no |
 | <a name="input_cloudfront_cached_methods"></a> [cloudfront\_cached\_methods](#input\_cloudfront\_cached\_methods) | List of cached methods (e.g. GET, PUT, POST, DELETE, HEAD) | `list(string)` | <pre>[<br/>  "GET",<br/>  "HEAD"<br/>]</pre> | no |
 | <a name="input_cloudfront_comment"></a> [cloudfront\_comment](#input\_cloudfront\_comment) | Cloudfront comments | `string` | `""` | no |
-| <a name="input_cloudfront_compress"></a> [cloudfront\_compress](#input\_cloudfront\_compress) | Compress content for web requests that include Accept-Encoding: gzip in the request header | `bool` | `false` | no |
+| <a name="input_cloudfront_compress"></a> [cloudfront\_compress](#input\_cloudfront\_compress) | Enable automatic compression for eligible content. Cache-policy encoding flags control Gzip/Brotli support. | `bool` | `true` | no |
 | <a name="input_cloudfront_create_origin_access_identity"></a> [cloudfront\_create\_origin\_access\_identity](#input\_cloudfront\_create\_origin\_access\_identity) | Controls if CloudFront origin access identity should be created | `bool` | `false` | no |
 | <a name="input_cloudfront_custom_error_response"></a> [cloudfront\_custom\_error\_response](#input\_cloudfront\_custom\_error\_response) | List of one or more custom error response element maps | <pre>list(object({<br/>    error_caching_min_ttl = number<br/>    error_code            = number<br/>    response_code         = number<br/>    response_page_path    = string<br/>  }))</pre> | `[]` | no |
 | <a name="input_cloudfront_custom_origins"></a> [cloudfront\_custom\_origins](#input\_cloudfront\_custom\_origins) | One or more custom origins for this distribution (multiples allowed). Each origin may set origin\_access\_control\_id for an existing CloudFront Origin Access Control. See documentation for configuration options description https://www.terraform.io/docs/providers/aws/r/cloudfront_distribution.html#origin-arguments | `any` | `[]` | no |
@@ -93,13 +116,14 @@ No modules.
 | <a name="input_cloudfront_forward_header_values"></a> [cloudfront\_forward\_header\_values](#input\_cloudfront\_forward\_header\_values) | A list of whitelisted header values to forward to the origin | `list(string)` | `[]` | no |
 | <a name="input_cloudfront_forward_query_string"></a> [cloudfront\_forward\_query\_string](#input\_cloudfront\_forward\_query\_string) | Forward query strings to the origin that is associated with this cache behavior | `bool` | `false` | no |
 | <a name="input_cloudfront_function_association"></a> [cloudfront\_function\_association](#input\_cloudfront\_function\_association) | (Optional) - A config block that triggers a cloudfront function with specific actions (maximum 2). | `any` | `{}` | no |
-| <a name="input_cloudfront_http_version"></a> [cloudfront\_http\_version](#input\_cloudfront\_http\_version) | The maximum HTTP version to support on the distribution. Allowed values are http1.1, http2, http2and3, and http3. The default is http2. | `string` | `"http2"` | no |
+| <a name="input_cloudfront_http_version"></a> [cloudfront\_http\_version](#input\_cloudfront\_http\_version) | The maximum HTTP version to support on the distribution. Allowed values are http1.1, http2, http2and3, and http3. The default is http2and3. | `string` | `"http2and3"` | no |
 | <a name="input_cloudfront_index_document"></a> [cloudfront\_index\_document](#input\_cloudfront\_index\_document) | Amazon S3 returns this index document when requests are made to the root domain or any of the subfolders | `string` | `"index.html"` | no |
 | <a name="input_cloudfront_lambda_function_association"></a> [cloudfront\_lambda\_function\_association](#input\_cloudfront\_lambda\_function\_association) | (Optional) - A config block that triggers a lambda function with specific actions (maximum 4). | `any` | `{}` | no |
 | <a name="input_cloudfront_max_ttl"></a> [cloudfront\_max\_ttl](#input\_cloudfront\_max\_ttl) | Maximum amount of time (in seconds) that an object is in a CloudFront cache | `number` | `31536000` | no |
 | <a name="input_cloudfront_min_ttl"></a> [cloudfront\_min\_ttl](#input\_cloudfront\_min\_ttl) | Minimum amount of time that you want objects to stay in CloudFront caches | `number` | `0` | no |
-| <a name="input_cloudfront_minimum_protocol_version"></a> [cloudfront\_minimum\_protocol\_version](#input\_cloudfront\_minimum\_protocol\_version) | Cloudfront TLS minimum protocol version | `string` | `"TLSv1.1_2016"` | no |
+| <a name="input_cloudfront_minimum_protocol_version"></a> [cloudfront\_minimum\_protocol\_version](#input\_cloudfront\_minimum\_protocol\_version) | Cloudfront TLS minimum protocol version | `string` | `"TLSv1.2_2021"` | no |
 | <a name="input_cloudfront_ordered_cache_behavior"></a> [cloudfront\_ordered\_cache\_behavior](#input\_cloudfront\_ordered\_cache\_behavior) | (Optional) - An ordered list of cache behaviors resource for this distribution. List from top to bottom in order of precedence. The topmost cache behavior will have precedence 0. | `any` | `[]` | no |
+| <a name="input_cloudfront_origin_access_control"></a> [cloudfront\_origin\_access\_control](#input\_cloudfront\_origin\_access\_control) | Optional S3 Origin Access Control to create. Used by the automatic bucket origin; explicit origins opt in with use\_module\_origin\_access\_control. Bucket permissions remain the consumer's responsibility. | <pre>object({<br/>    name             = string<br/>    description      = optional(string)<br/>    signing_behavior = optional(string, "always")<br/>    signing_protocol = optional(string, "sigv4")<br/>  })</pre> | `null` | no |
 | <a name="input_cloudfront_origin_access_identities"></a> [cloudfront\_origin\_access\_identities](#input\_cloudfront\_origin\_access\_identities) | Map of CloudFront origin access identities (value as a comment) | `map(string)` | `{}` | no |
 | <a name="input_cloudfront_origin_group"></a> [cloudfront\_origin\_group](#input\_cloudfront\_origin\_group) | One or more origin\_group for this distribution (multiples allowed). | `any` | `{}` | no |
 | <a name="input_cloudfront_price_class"></a> [cloudfront\_price\_class](#input\_cloudfront\_price\_class) | Price class for this distribution: `PriceClass_All`, `PriceClass_200`, `PriceClass_100` | `string` | `"PriceClass_All"` | no |
@@ -121,7 +145,7 @@ No modules.
 | <a name="input_policy"></a> [policy](#input\_policy) | A valid bucket policy JSON document | `string` | `""` | no |
 | <a name="input_replication_configuration"></a> [replication\_configuration](#input\_replication\_configuration) | Map containing cross-region bucket replication configuration. | `any` | `{}` | no |
 | <a name="input_restrict_public_buckets"></a> [restrict\_public\_buckets](#input\_restrict\_public\_buckets) | Whether Amazon S3 should restrict public bucket policies for this bucket. | `bool` | `false` | no |
-| <a name="input_route53_enabled"></a> [route53\_enabled](#input\_route53\_enabled) | Set to false to prevent the module from creating any resources | `bool` | `true` | no |
+| <a name="input_route53_enabled"></a> [route53\_enabled](#input\_route53\_enabled) | Whether to create Route 53 DNS records for CloudFront aliases. Disabled by default. | `bool` | `false` | no |
 | <a name="input_route53_evaluate_target_health"></a> [route53\_evaluate\_target\_health](#input\_route53\_evaluate\_target\_health) | Set to true if you want Route 53 to determine whether to respond to DNS queries | `bool` | `false` | no |
 | <a name="input_route53_parent_zone_id"></a> [route53\_parent\_zone\_id](#input\_route53\_parent\_zone\_id) | ID of the hosted zone to contain this record  (or specify `parent_zone_name`) | `string` | `""` | no |
 | <a name="input_route53_parent_zone_name"></a> [route53\_parent\_zone\_name](#input\_route53\_parent\_zone\_name) | Name of the hosted zone to contain this record (or specify `parent_zone_id`) | `string` | `""` | no |
@@ -141,6 +165,8 @@ No modules.
 | <a name="output_bucket_demain_name"></a> [bucket\_demain\_name](#output\_bucket\_demain\_name) | S3 Bucket Domain Name |
 | <a name="output_bucket_name"></a> [bucket\_name](#output\_bucket\_name) | S3 Bucket Name |
 | <a name="output_cloudfront_arn"></a> [cloudfront\_arn](#output\_cloudfront\_arn) | The ARN (Amazon Resource Name) for the distribution. |
+| <a name="output_cloudfront_cache_policy_id"></a> [cloudfront\_cache\_policy\_id](#output\_cloudfront\_cache\_policy\_id) | ID of the cache policy created by this module, or null when not created. |
 | <a name="output_cloudfront_domain_name"></a> [cloudfront\_domain\_name](#output\_cloudfront\_domain\_name) | The domain name corresponding to the distribution. |
 | <a name="output_cloudfront_id"></a> [cloudfront\_id](#output\_cloudfront\_id) | The identifier for the cloudfront distribution |
+| <a name="output_cloudfront_origin_access_control_id"></a> [cloudfront\_origin\_access\_control\_id](#output\_cloudfront\_origin\_access\_control\_id) | ID of the Origin Access Control created by this module, or null when not created. |
 <!-- END_TF_DOCS -->
